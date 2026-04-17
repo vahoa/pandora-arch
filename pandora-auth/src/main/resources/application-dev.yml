@@ -1,0 +1,168 @@
+################################################################################
+# 文件：application-dev.yml （pandora-auth 开发环境）
+#
+# 【名字】 pandora-auth-server dev profile
+# 【用途】 开发期联调：连本地 MySQL / Redis / 三方社交登录 Mock
+# 【用法】 -Dspring.profiles.active=dev
+# 【配置方法】 所有外部地址都可用 env 覆写，便于本地不同同学差异化
+################################################################################
+
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  servlet:
+    # Servlet 上下文路径；/ 表示所有接口挂根路径（不加前缀）
+    context-path: /
+
+  # ==================================================================
+  # 数据源（单数据源 / HikariCP 连接池 / MySQL 9.x）
+  #
+  # 【名字】 spring.datasource
+  # 【用途】 auth 表（用户、角色、菜单、登录日志）的存储
+  # 【用法】 被 MyBatis-Flex 自动注入；应用代码用 Mapper / QueryWrapper 访问
+  # 【配置方法】 MYSQL_URL / MYSQL_USERNAME / MYSQL_PASSWORD 三个 env 覆写
+  # ==================================================================
+  datasource:
+    # 连接池实现（HikariCP：Spring Boot 默认，高性能低开销）
+    type: com.zaxxer.hikari.HikariDataSource
+    # MySQL 9.x 驱动类名
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # JDBC URL（注意：useSSL=false 仅本地；生产必须 true）
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/pandora?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+    # HikariCP 细节
+    hikari:
+      minimum-idle: 5              # 常驻最少空闲连接
+      maximum-pool-size: 20        # 池最大连接数
+      idle-timeout: 600000         # 空闲 10 分钟回收
+      max-lifetime: 1800000        # 连接最长生命周期 30 分钟
+      connection-timeout: 30000    # 获取连接超时 30s
+      connection-test-query: SELECT 1   # 活性探针 SQL
+
+  # ==================================================================
+  # Redis（仅 Redisson；项目已全局去除 Lettuce/Jedis）
+  #
+  # 两层配置：
+  #   1) spring.data.redis.* —— 标准 Spring Boot Redis 属性
+  #   2) spring.redis.redisson.config —— Redisson 原生 YAML（更丰富的参数）
+  # 两者会被 redisson-spring-boot-starter 合并，以 spring.redis.redisson 为准
+  # ==================================================================
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:1}    # auth 服务使用 1 号库
+      timeout: 3000ms
+      # 注意：无密码场景不写 password 键（空串会被 Redisson 4.3.1 当作"有密码"发 AUTH 失败）
+      # password: ${REDIS_PASSWORD}
+
+  redis:
+    redisson:
+      # Redisson 原生 YAML（以字符串形式整块写入，启动时 YAML 解析）
+      config: |
+        singleServerConfig:
+          address: "redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}"
+          database: ${REDIS_DATABASE:1}
+          connectionPoolSize: 16              # 单节点连接池上限
+          connectionMinimumIdleSize: 4        # 最小空闲连接
+          idleConnectionTimeout: 10000        # 空闲回收
+          timeout: 3000                       # 命令超时
+          retryAttempts: 3                    # 失败重试
+
+# ==================================================================
+# server.tomcat：内嵌 Tomcat 线程池调优
+#   名字：Tomcat 线程/连接配置
+#   用途：并发能力上限；过大浪费内存，过小拒绝连接
+#   配置方法：按机器核数 × 业务 IO/CPU 比 调优
+# ==================================================================
+server:
+  tomcat:
+    threads:
+      max: 300           # 最大工作线程
+      min-spare: 30      # 最少常驻空闲线程
+    max-connections: 8000   # 最大连接数（含 accept 队列）
+
+# Actuator 细化：开发环境暴露更完整端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always        # 开发期看全细节
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      profile: dev
+
+# ==================================================================
+# auth 根节点：本模块自定义的认证相关业务属性
+#   由 cn.pandora.auth.config.AuthProperties 绑定
+# ==================================================================
+auth:
+  # JWT 属性（Access / Refresh Token）
+  #   secret          —— HMAC-SHA 密钥，生产必须强随机且从 KMS 注入
+  #   expiration      —— 访问令牌有效期（秒）
+  #   refresh-expiration —— 刷新令牌有效期（秒）
+  jwt:
+    secret: ${AUTH_JWT_SECRET:pandora-arch-jwt-secret-key-must-be-at-least-256-bits-long-2026}
+    expiration: 7200             # 2 小时
+    refresh-expiration: 604800   # 7 天
+
+  # 短信验证码策略
+  sms:
+    code-length: 6           # 验证码位数
+    expire-minutes: 5        # 过期时间（分钟）
+    daily-limit: 10          # 单号码每日最多发送次数（防刷）
+    mock-enabled: ${SMS_MOCK_ENABLED:true}   # 开发期打开 Mock（打印日志不发真短信）
+
+  # 微信小程序（wx.login）
+  wechat-mini:
+    app-id: ${WECHAT_MINI_APP_ID:}
+    app-secret: ${WECHAT_MINI_APP_SECRET:}
+
+  # ================================================================
+  # social：基于 JustAuth 1.16.7 的社交登录统一配置
+  # 每个渠道包含：client-id / client-secret / redirect-uri
+  # 开发期留空，走 Mock；生产从 KMS 注入
+  # ================================================================
+  social:
+    wechat_app:             # 移动端微信（App 内拉起微信授权）
+      client-id: ${WECHAT_APP_CLIENT_ID:}
+      client-secret: ${WECHAT_APP_CLIENT_SECRET:}
+      redirect-uri: ${AUTH_BASE_URL:http://localhost:9100}/auth/social/callback/wechat_app
+    wechat_scan:            # PC 网站扫码登录
+      client-id: ${WECHAT_SCAN_CLIENT_ID:}
+      client-secret: ${WECHAT_SCAN_CLIENT_SECRET:}
+      redirect-uri: ${AUTH_BASE_URL:http://localhost:9100}/auth/social/callback/wechat_scan
+    wechat_quick:           # PC 微信一键登录
+      client-id: ${WECHAT_QUICK_CLIENT_ID:}
+      client-secret: ${WECHAT_QUICK_CLIENT_SECRET:}
+      redirect-uri: ${AUTH_BASE_URL:http://localhost:9100}/auth/social/callback/wechat_quick
+    wechat_official:        # 微信公众号网页授权
+      client-id: ${WECHAT_OFFICIAL_CLIENT_ID:}
+      client-secret: ${WECHAT_OFFICIAL_CLIENT_SECRET:}
+      redirect-uri: ${AUTH_BASE_URL:http://localhost:9100}/auth/social/callback/wechat_official
+    enterprise_wechat:      # 企业微信
+      client-id: ${ENTERPRISE_WECHAT_CLIENT_ID:}
+      client-secret: ${ENTERPRISE_WECHAT_CLIENT_SECRET:}
+      redirect-uri: ${AUTH_BASE_URL:http://localhost:9100}/auth/social/callback/enterprise_wechat
+    qq:                     # QQ 登录
+      client-id: ${QQ_CLIENT_ID:}
+      client-secret: ${QQ_CLIENT_SECRET:}
+      redirect-uri: ${AUTH_BASE_URL:http://localhost:9100}/auth/social/callback/qq
+
+# ==================================================================
+# 日志：开发期详细（DEBUG）
+# ==================================================================
+logging:
+  level:
+    cn.pandora.auth: DEBUG                    # 业务日志
+    org.springframework.security: DEBUG       # Security Filter Chain 细节
+    org.springframework.web: DEBUG            # 请求进出
+  # 不自定义 pattern.console，使用 Spring Boot 默认带 %clr(...) 的彩色 pattern；
+  # 由 application.yml 的 spring.output.ansi.enabled=ALWAYS 开启颜色。

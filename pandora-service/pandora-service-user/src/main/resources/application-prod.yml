@@ -1,0 +1,152 @@
+################################################################################
+# 文件：application-prod.yml （pandora-service-user 生产环境）
+#
+# 【名字】 pandora-service-user prod profile
+# 【用途】 生产部署：MySQL 主从分离 + Redis Cluster + 严格多数据源 + 日志落盘
+# 【用法】 -Dspring.profiles.active=prod
+# 【配置方法】 必须注入：MYSQL_*、REDIS_NODE_*、MINIO_*、AUTH_SERVER_URL
+################################################################################
+
+spring:
+  config:
+    activate:
+      on-profile: prod
+    import:
+      # 生产不用 optional，Nacos 不可达应阻塞启动
+      - nacos:pandora-service-user-prod.yml?group=${NACOS_REMOTE_GROUP:PROD_GROUP}&refreshEnabled=true
+
+  servlet:
+    context-path: /
+
+  cloud:
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:sentinel-dashboard:8858}
+        port: 8719
+      datasource:
+        flow:
+          nacos:
+            server-addr: ${spring.cloud.nacos.server-addr}
+            dataId: ${spring.application.name}-prod-flow-rules
+            groupId: SENTINEL_GROUP
+            rule-type: flow
+        degrade:
+          nacos:
+            server-addr: ${spring.cloud.nacos.server-addr}
+            dataId: ${spring.application.name}-prod-degrade-rules
+            groupId: SENTINEL_GROUP
+            rule-type: degrade
+
+  # ================================================================
+  # 生产动态多数据源：master 写 + slave 读 真正分离
+  # strict=true：找不到 @DS 指定的数据源直接抛异常（防止误走错库）
+  # ================================================================
+  datasource:
+    dynamic:
+      primary: master
+      strict: true
+      datasource:
+        master:                              # 主库：写操作
+          url: ${MYSQL_MASTER_URL:jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/pandora?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=Asia/Shanghai}
+          username: ${MYSQL_USER:root}
+          password: ${MYSQL_PASSWORD}        # 必须注入
+          driver-class-name: com.mysql.cj.jdbc.Driver
+        slave:                               # 从库：读操作
+          url: ${MYSQL_SLAVE_URL:jdbc:mysql://${MYSQL_SLAVE_HOST:localhost}:${MYSQL_PORT:3306}/pandora?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=Asia/Shanghai}
+          username: ${MYSQL_USER:root}
+          password: ${MYSQL_PASSWORD}
+          driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:                                # 生产大池
+        minimum-idle: 20
+        maximum-pool-size: 100
+        idle-timeout: 600000
+        max-lifetime: 1800000
+        connection-timeout: 30000
+
+  # Redis Cluster（3 主 3 从示例）
+  data:
+    redis:
+      cluster:
+        nodes:
+          - ${REDIS_NODE_0:127.0.0.1:7000}
+          - ${REDIS_NODE_1:127.0.0.1:7001}
+          - ${REDIS_NODE_2:127.0.0.1:7002}
+      password: ${REDIS_PASSWORD:}
+      timeout: 5000ms
+
+  redis:
+    redisson:
+      config: |
+        clusterServersConfig:
+          nodeAddresses:
+            - "redis://${REDIS_NODE_0:127.0.0.1:7000}"
+            - "redis://${REDIS_NODE_1:127.0.0.1:7001}"
+            - "redis://${REDIS_NODE_2:127.0.0.1:7002}"
+          password: ${REDIS_PASSWORD:}
+          masterConnectionPoolSize: 64
+          slaveConnectionPoolSize: 64
+          idleConnectionTimeout: 10000
+          timeout: 5000
+          retryAttempts: 3
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${AUTH_SERVER_URL:http://pandora-auth:9100}
+
+# 生产 Tomcat：高并发容量
+server:
+  tomcat:
+    threads:
+      max: 800
+      min-spare: 80
+    max-connections: 20000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      profile: prod
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://minio:9000}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket: ${MINIO_BUCKET:corp-web}
+
+mybatis-flex:
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: true
+    lazy-loading-enabled: true                # 生产打开懒加载节省网络
+  global-config:
+    print-banner: false
+    normal-value-of-logic-delete: 0
+    deleted-value-of-logic-delete: 1
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    root: WARN
+    cn.pandora: INFO
+    com.mybatisflex: WARN
+    org.springframework.web: WARN
+  file:
+    name: /var/log/pandora-service-user/application.log
+    max-size: 100MB
+    max-history: 30
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"

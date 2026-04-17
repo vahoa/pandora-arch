@@ -1,0 +1,175 @@
+################################################################################
+# 文件：application.yml （pandora-gateway 主配置）
+#
+# 【名字】 pandora-gateway application.yml
+# 【用途】 作为 Spring Cloud Gateway 统一入口层的「与环境无关」基础配置。
+#         本文件只放 端口 / 应用名 / Nacos 核心连接 / JWT 基础属性 等
+#         通用项；环境差异（路由、限流阈值、Redis 地址等）全部拆到
+#         application-{dev|test|prod}.yml。
+# 【用法】 默认被 Spring Boot 自动加载；无须手动引用。
+#         启动时必须通过 -Dspring.profiles.active=dev|test|prod 指定环境，
+#         否则 ${spring.profiles.active} 占位符将无法被填充。
+# 【配置方法】 所有 ${VAR:default} 的值均可通过
+#              1) OS 环境变量；2) JVM -D 参数；3) Nacos 远程配置 覆写。
+#              Nacos 远程 DataId 约定：
+#                {spring.application.name}-{profile}.yml
+#                示例：pandora-gateway-dev.yml / pandora-gateway-prod.yml
+################################################################################
+
+# ==================================================================
+# server 区块
+#   名字：Spring Boot 内嵌 Web 服务器配置
+#   用途：本服务对外提供代理流量的端口
+#   用法：客户端请求 http://<gateway-host>:8888/...
+#   配置方法：通过环境变量 SERVER_PORT 或 -Dserver.port=xxx 覆写
+# ==================================================================
+server:
+  # 业务流量端口（网关对外转发请求）
+  port: 8888
+
+# ==================================================================
+# management 区块
+#   名字：Spring Boot Actuator 管理端口
+#   用途：与业务端口隔离，专门暴露 /actuator/health /metrics 等监控端点
+#   用法：监控系统、K8s 存活/就绪探针 访问 http://<host>:18888/actuator/*
+#   配置方法：设置 MANAGEMENT_SERVER_PORT 可改端口
+# ==================================================================
+management:
+  server:
+    # Actuator 专用端口（物理隔离业务流量与运维流量，防止外部访问运维接口）
+    port: 18888
+  endpoints:
+    web:
+      exposure:
+        # 允许暴露的 Actuator 端点集合：
+        #   health      - 健康检查（含下游依赖状态）
+        #   info        - 应用自描述信息
+        #   metrics     - Micrometer 指标原数据
+        #   prometheus  - Prometheus 抓取格式 /actuator/prometheus
+        #   gateway     - Spring Cloud Gateway 路由查询端点（SCG 5.0+Boot 4 兼容性限制：可能 404）
+        include: health,info,metrics,prometheus,gateway
+  endpoint:
+    health:
+      # show-details 可选值：
+      #   never           - 只返回 status=UP/DOWN
+      #   when-authorized - 仅授权用户可见细节（推荐生产环境）
+      #   always          - 总是返回完整细节（仅开发期使用）
+      show-details: when-authorized
+
+# ==================================================================
+# spring 区块
+#   名字：Spring Boot 核心配置
+#   用途：应用身份 + Profile 激活 + Nacos 注册中心/配置中心
+#   用法：Spring Boot 启动时自动扫描
+#   配置方法：所有值均可通过 env 变量/JVM 参数/Nacos 覆写
+# ==================================================================
+spring:
+  application:
+    # 应用名（非常重要）：
+    #   1) 作为 Nacos 服务实例名，供其他服务 lb://pandora-gateway 发现
+    #   2) 作为 Nacos 远程配置 DataId 的前缀
+    #   3) 作为 Micrometer metrics 的 application tag
+    name: pandora-gateway
+
+  profiles:
+    # Profile 激活方式：由 Maven 构建期 @spring.profiles.active@ 过滤占位符
+    # 由 -P dev / -P test / -P prod 这些 Maven profile 决定最终打进 jar 的值
+    active: @spring.profiles.active@
+
+  # ==================================================================
+  # 控制台 ANSI 彩色日志（与 Spring Boot 原生启动样式一致）
+  # ALWAYS: 强制启用（Windows PowerShell / Windows Terminal / IDEA 控制台均支持）
+  # DETECT: 自动检测（部分终端会识别失败退化为无色）
+  # NEVER : 关闭（用于纯文件输出场景）
+  # ==================================================================
+  output:
+    ansi:
+      enabled: ALWAYS
+
+  cloud:
+    # ============================================================
+    # Nacos 集群配置（pandora 项目唯一的注册中心 + 配置中心）
+    #
+    # 集群节点（由运维部署，使用 Nginx/HAProxy 暴露 3 节点统一接入）：
+    #   192.168.50.168:8140
+    #   192.168.50.168:8550
+    #   192.168.50.168:8960
+    #
+    # 【配置方法】
+    #   1) 生产环境：通过 NACOS_SERVER_ADDR 环境变量指向 VIP / 域名
+    #   2) 本地开发：默认连上述 3 节点集群，逗号分隔
+    #   3) Nacos 2.x 启用鉴权时需配置 NACOS_USERNAME/NACOS_PASSWORD
+    #   4) 多租户 SaaS 场景用 NACOS_NAMESPACE 做物理隔离
+    # ============================================================
+    nacos:
+      # 集群地址（默认连 3 节点集群，逗号分隔；SDK 自动做负载与故障转移）
+      server-addr: ${NACOS_SERVER_ADDR:192.168.50.168:8140,192.168.50.168:8550,192.168.50.168:8960}
+      # Nacos 2.x 鉴权账号（启用 nacos.core.auth.enabled=true 时必填）
+      username: ${NACOS_USERNAME:nacos}
+      # Nacos 2.x 鉴权密码
+      password: ${NACOS_PASSWORD:nacos}
+      # 命名空间 ID（用于环境隔离；例如 dev/test/prod 各自一个 namespace；留空表示默认）
+      namespace: ${NACOS_NAMESPACE:}
+
+      # -------------------- 注册中心（Service Discovery） --------------------
+      # 用途：本服务启动时把自己注册到 Nacos，其他服务可用 lb://pandora-gateway 发现
+      # 用法：被 spring-cloud-starter-alibaba-nacos-discovery 自动读取
+      discovery:
+        # 是否启用注册中心（关闭后不会注册到 Nacos）
+        enabled: true
+        # 所属分组（网关与业务同组；此处按 profile 自动区分 DEV/TEST/PROD）
+        group: ${spring.profiles.active}
+        # 命名空间（继承上层 spring.cloud.nacos.namespace）
+        namespace: ${spring.cloud.nacos.namespace}
+        # 实例元数据（供灰度发布、版本路由、多机房隔离等逻辑使用）
+        metadata:
+          # 版本号：供网关按 version 路由（金丝雀发布用）
+          version: 1.0.0
+          # 部署机房（华东/华北/AWS-us-east 等，供同机房优先路由用）
+          region: ${REGION:default}
+        # 心跳间隔（毫秒）——越短故障检测越快但 Nacos 压力越大
+        heart-beat-interval: 5000
+        # 心跳超时（毫秒）——超过则标记实例不健康
+        heart-beat-timeout: 15000
+
+      # -------------------- 配置中心（Config Management） --------------------
+      # 用途：把可动态变更的配置放 Nacos，无需重启就能热更
+      # 用法：spring.config.import=nacos:<DataId>?group=xxx 即可拉取远程 yml
+      config:
+        # 是否启用配置中心
+        enabled: true
+        # 远程配置所属分组（约定与 profile 同名：DEV/TEST/PROD）
+        group: ${spring.profiles.active}
+        # 远程配置文件格式（与 DataId 后缀一致）
+        file-extension: yml
+        # 命名空间（隔离不同环境的远程配置）
+        namespace: ${spring.cloud.nacos.namespace}
+        # 是否允许热刷新（配合 @RefreshScope / @ConfigurationProperties 生效）
+        refresh-enabled: true
+
+# ==================================================================
+# pandora.gateway.jwt 区块
+#   名字：pandora-gateway 自定义 JWT 属性（绑定到 GatewayJwtProperties.java）
+#   用途：指定 JWT 密钥、黑名单开关、鉴权白名单路径
+#   用法：由 AuthGlobalFilter 读取，校验 Bearer Token
+#   配置方法：生产环境强烈要求 PANDORA_JWT_SECRET 用强随机值
+# ==================================================================
+pandora:
+  gateway:
+    jwt:
+      # HMAC-SHA256 密钥（必须 ≥32 字节；生产必须从密钥管理服务注入）
+      secret: ${PANDORA_JWT_SECRET:pandora-gateway-default-secret-key-change-in-production!}
+      # 是否启用 Redis 黑名单（登出后把 JWT 放黑名单防重放；无 Redis 时设 false）
+      blacklist-enabled: true
+      # 白名单路径（命中后直接放行，不走 JWT 校验）
+      # 支持 Ant 风格通配：* 单层 / ** 多层
+      white-list:
+        - /auth/**              # 认证服务器接口（登录/登出/刷新）
+        - /oauth2/**            # OAuth2 协议端点
+        - /login/**             # 登录页与回调
+        - /.well-known/**       # JWKs / OpenID Discovery
+        - /actuator/**          # 监控端点
+        - /v3/api-docs/**       # OpenAPI 3.x 规范
+        - /swagger-ui/**        # Swagger UI
+        - /swagger-resources/** # Swagger 资源
+        - /favicon.ico          # 浏览器图标

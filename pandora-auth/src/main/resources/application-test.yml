@@ -1,0 +1,127 @@
+################################################################################
+# 文件：application-test.yml （pandora-auth 测试环境）
+#
+# 【名字】 pandora-auth-server test profile
+# 【用途】 QA 测试集群；DB schema=pandora_test，Redis DB=2
+# 【用法】 -Dspring.profiles.active=test
+################################################################################
+
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  servlet:
+    context-path: /
+
+  # ================================================================
+  # 测试库：pandora_test；与 dev 物理隔离
+  # ================================================================
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 测试环境建议连接到独立 MySQL 实例或独立 schema
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/pandora_test?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  # Redis 使用 2 号库与 dev（1 号库）物理隔离
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:2}
+      timeout: 3000ms
+      # 无密码场景不写 password 键（同 dev 说明）
+      # password: ${REDIS_PASSWORD}
+
+  redis:
+    redisson:
+      config: |
+        singleServerConfig:
+          address: "redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}"
+          database: ${REDIS_DATABASE:2}
+          connectionPoolSize: 16
+          connectionMinimumIdleSize: 4
+          idleConnectionTimeout: 10000
+          timeout: 3000
+          retryAttempts: 3
+
+# Tomcat：测试环境容量略低于 dev（节约资源）
+server:
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 20
+    max-connections: 5000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      # 测试环境不暴露过多细节给匿名访问
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      profile: test
+
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET:pandora-arch-jwt-secret-key-must-be-at-least-256-bits-long-2026}
+    expiration: 7200
+    refresh-expiration: 604800
+
+  sms:
+    code-length: 6
+    expire-minutes: 5
+    daily-limit: 30                    # 测试允许更多次数方便 QA 用例
+    mock-enabled: ${SMS_MOCK_ENABLED:true}
+
+  wechat-mini:
+    app-id: ${WECHAT_MINI_APP_ID:}
+    app-secret: ${WECHAT_MINI_APP_SECRET:}
+
+  social:
+    wechat_app:
+      client-id: ${WECHAT_APP_CLIENT_ID:}
+      client-secret: ${WECHAT_APP_CLIENT_SECRET:}
+      redirect-uri: ${AUTH_BASE_URL:http://localhost:9100}/auth/social/callback/wechat_app
+    wechat_scan:
+      client-id: ${WECHAT_SCAN_CLIENT_ID:}
+      client-secret: ${WECHAT_SCAN_CLIENT_SECRET:}
+      redirect-uri: ${AUTH_BASE_URL:http://localhost:9100}/auth/social/callback/wechat_scan
+    wechat_quick:
+      client-id: ${WECHAT_QUICK_CLIENT_ID:}
+      client-secret: ${WECHAT_QUICK_CLIENT_SECRET:}
+      redirect-uri: ${AUTH_BASE_URL:http://localhost:9100}/auth/social/callback/wechat_quick
+    wechat_official:
+      client-id: ${WECHAT_OFFICIAL_CLIENT_ID:}
+      client-secret: ${WECHAT_OFFICIAL_CLIENT_SECRET:}
+      redirect-uri: ${AUTH_BASE_URL:http://localhost:9100}/auth/social/callback/wechat_official
+    enterprise_wechat:
+      client-id: ${ENTERPRISE_WECHAT_CLIENT_ID:}
+      client-secret: ${ENTERPRISE_WECHAT_CLIENT_SECRET:}
+      redirect-uri: ${AUTH_BASE_URL:http://localhost:9100}/auth/social/callback/enterprise_wechat
+    qq:
+      client-id: ${QQ_CLIENT_ID:}
+      client-secret: ${QQ_CLIENT_SECRET:}
+      redirect-uri: ${AUTH_BASE_URL:http://localhost:9100}/auth/social/callback/qq
+
+# 测试环境日志：收敛到 INFO
+logging:
+  level:
+    cn.pandora.auth: INFO
+    org.springframework.security: INFO
+    org.springframework.web: INFO
+  # 不自定义 pattern.console，使用 Spring Boot 默认带 %clr(...) 的彩色 pattern；
+  # 由 application.yml 的 spring.output.ansi.enabled=ALWAYS 开启颜色。

@@ -1,0 +1,119 @@
+################################################################################
+# 文件：application-prod.yml （pandora-gateway 生产环境）
+#
+# 【名字】 pandora-gateway prod profile
+# 【用途】 线上生产部署；所有敏感值必须从环境变量注入，严禁写死
+# 【用法】 启动命令：-Dspring.profiles.active=prod
+# 【配置方法】 部署前必须设置：
+#     NACOS_SERVER_ADDR / NACOS_USERNAME / NACOS_PASSWORD / NACOS_NAMESPACE
+#     REDIS_HOST / REDIS_PASSWORD
+#     PANDORA_JWT_SECRET
+# 配套 Nacos 远程 DataId：pandora-gateway-prod.yml（group=PROD_GROUP）
+################################################################################
+
+spring:
+  config:
+    activate:
+      on-profile: prod
+    import:
+      # 生产不加 optional —— Nacos 不可达时应拒绝启动，避免无配置裸跑
+      - nacos:pandora-gateway-prod.yml?group=${NACOS_REMOTE_GROUP:PROD_GROUP}&refreshEnabled=true
+
+  # ================================================================
+  # Reactive Redis：生产可挂集群或哨兵；此处为单机连接样例
+  # 生产集群切换：把 host/port 换成 cluster.nodes 列表（见 service-user prod）
+  # ================================================================
+  data:
+    redis:
+      host: ${REDIS_HOST:redis-prod}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DB:0}
+      timeout: 2000ms              # 生产收紧超时，失败更快以便熔断
+      # 生产通常会启用密码；启用时由 env REDIS_PASSWORD 注入，同步在 redisson 块添加 password
+      # password: ${REDIS_PASSWORD}
+
+  # Redisson 原生 YAML（单节点示例；若接入集群把 singleServerConfig 改 clusterServersConfig）
+  redis:
+    redisson:
+      config: |
+        singleServerConfig:
+          address: "redis://${REDIS_HOST:redis-prod}:${REDIS_PORT:6379}"
+          database: ${REDIS_DB:0}
+          connectionPoolSize: 32
+          connectionMinimumIdleSize: 8
+          idleConnectionTimeout: 10000
+          timeout: 2000
+          retryAttempts: 3
+
+  cloud:
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:sentinel-dashboard:8858}
+        port: 8719
+      datasource:
+        flow:
+          nacos:
+            server-addr: ${spring.cloud.nacos.server-addr}
+            dataId: ${spring.application.name}-prod-flow-rules
+            groupId: SENTINEL_GROUP
+            rule-type: flow
+        degrade:
+          nacos:
+            server-addr: ${spring.cloud.nacos.server-addr}
+            dataId: ${spring.application.name}-prod-degrade-rules
+            groupId: SENTINEL_GROUP
+            rule-type: degrade
+
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+          default-filters:
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE
+          routes:
+            - id: pandora-service-user
+              uri: lb://pandora-service-user
+              predicates:
+                - Path=/api/users/**
+              filters:
+                - StripPrefix=0
+            - id: pandora-auth-server
+              uri: lb://pandora-auth-server
+              predicates:
+                - Path=/auth/**,/oauth2/**,/.well-known/**
+              filters:
+                - StripPrefix=0
+
+# 限流阈值：生产最严格、也最高上限（按容量规划调整）
+pandora:
+  gateway:
+    ratelimit:
+      default-replenish-rate: 100   # 默认 API QPS
+      default-burst-capacity: 200   # 默认 API 突发
+      login-replenish-rate: 20      # 登录防爆破：单个 IP 每秒 20 次
+      login-burst-capacity: 40      # 登录桶容量
+
+management:
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      profile: prod
+
+# 生产日志：根级 WARN + 业务包 INFO；落盘滚动
+logging:
+  level:
+    root: WARN
+    org.springframework.cloud.gateway: WARN
+    cn.pandora: INFO
+  file:
+    name: /var/log/pandora-gateway/application.log  # 日志文件全路径
+    max-size: 100MB                                  # 单文件最大 100MB 后滚动
+    max-history: 30                                  # 保留 30 天历史
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"

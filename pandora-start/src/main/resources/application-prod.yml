@@ -1,0 +1,172 @@
+################################################################################
+# 文件：application-prod.yml （pandora-start 单体生产环境）
+#
+# 【名字】 pandora-arch prod profile（单体）
+# 【用途】 单体生产部署（中小规模场景，不用微服务）；MySQL 主从 + Redis Cluster(6节点) + Kafka
+# 【用法】 -Dspring.profiles.active=prod
+################################################################################
+
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  servlet:
+    context-path: /
+
+  # ================================================================
+  # 动态多数据源：主从分离；strict=true 严格校验
+  # ================================================================
+  datasource:
+    dynamic:
+      primary: master
+      strict: true
+      datasource:
+        master:
+          url: ${MYSQL_MASTER_URL:jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/pandora?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=Asia/Shanghai}
+          username: ${MYSQL_USER:root}
+          password: ${MYSQL_PASSWORD}
+          driver-class-name: com.mysql.cj.jdbc.Driver
+        slave:
+          url: ${MYSQL_SLAVE_URL:jdbc:mysql://${MYSQL_SLAVE_HOST:localhost}:${MYSQL_PORT:3306}/pandora?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=Asia/Shanghai}
+          username: ${MYSQL_USER:root}
+          password: ${MYSQL_PASSWORD}
+          driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:
+        minimum-idle: 20
+        maximum-pool-size: 100
+        idle-timeout: 600000
+        max-lifetime: 1800000
+        connection-timeout: 30000
+
+  # ================================================================
+  # Redis Cluster（6 节点：3 主 3 从）；max-redirects 控制 MOVED 跳转上限
+  # ================================================================
+  data:
+    redis:
+      cluster:
+        nodes:
+          - ${REDIS_NODE_0:127.0.0.1:7000}
+          - ${REDIS_NODE_1:127.0.0.1:7001}
+          - ${REDIS_NODE_2:127.0.0.1:7002}
+          - ${REDIS_NODE_3:127.0.0.1:7003}
+          - ${REDIS_NODE_4:127.0.0.1:7004}
+          - ${REDIS_NODE_5:127.0.0.1:7005}
+        # 集群 MOVED/ASK 跳转最大次数（超过则失败）
+        max-redirects: 3
+      password: ${REDIS_PASSWORD:}
+      timeout: 5000ms
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/pandora}
+      # 生产不自动建索引（预先用 DBA 脚本创建，避免启动慢）
+      auto-index-creation: false
+
+  redis:
+    redisson:
+      config: |
+        clusterServersConfig:
+          nodeAddresses:
+            - "redis://${REDIS_NODE_0:127.0.0.1:7000}"
+            - "redis://${REDIS_NODE_1:127.0.0.1:7001}"
+            - "redis://${REDIS_NODE_2:127.0.0.1:7002}"
+            - "redis://${REDIS_NODE_3:127.0.0.1:7003}"
+            - "redis://${REDIS_NODE_4:127.0.0.1:7004}"
+            - "redis://${REDIS_NODE_5:127.0.0.1:7005}"
+          password: ${REDIS_PASSWORD:}
+          masterConnectionPoolSize: 64
+          slaveConnectionPoolSize: 64
+          idleConnectionTimeout: 10000
+          timeout: 5000
+          retryAttempts: 3
+          # 读取策略：MASTER_SLAVE=读从为主，从不可达降级到主
+          readMode: "MASTER_SLAVE"
+
+  # Kafka 生产配置：acks=all 强持久；lz4 压缩减带宽
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    producer:
+      retries: 5
+      acks: all                        # 所有 ISR 确认，最高可靠性
+      compression-type: lz4
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: pandora-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: manual_immediate
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${AUTH_SERVER_URL:http://pandora-auth:9100}
+
+server:
+  tomcat:
+    threads:
+      max: 800
+      min-spare: 80
+    max-connections: 20000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      profile: prod
+
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET}              # 生产必须注入
+  server-url: ${AUTH_SERVER_URL:http://pandora-auth:9100}
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://minio:9000}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket: ${MINIO_BUCKET:corp-web}
+
+pandora:
+  kafka:
+    enabled: true
+  mongodb:
+    enabled: true
+
+mybatis-flex:
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: true
+    lazy-loading-enabled: true
+  global-config:
+    print-banner: false
+    normal-value-of-logic-delete: 0
+    deleted-value-of-logic-delete: 1
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    root: WARN
+    cn.pandora: INFO
+    com.mybatisflex: WARN
+    org.springframework.web: WARN
+  file:
+    name: /var/log/pandora-arch/application.log
+    max-size: 100MB
+    max-history: 30
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"

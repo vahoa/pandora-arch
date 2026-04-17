@@ -1,0 +1,144 @@
+################################################################################
+# 文件：application-prod.yml （pandora-auth 生产环境）
+#
+# 【名字】 pandora-auth-server prod profile
+# 【用途】 生产部署；强制 SSL 连 MySQL；Redis 集群；日志落盘
+# 【用法】 -Dspring.profiles.active=prod
+# 【配置方法】 部署必须注入以下环境变量：
+#     MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD
+#     REDIS_NODE_0..2 / REDIS_PASSWORD
+#     AUTH_JWT_SECRET （强随机，≥256 bit）
+#     WECHAT_*_CLIENT_ID / WECHAT_*_CLIENT_SECRET
+################################################################################
+
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  servlet:
+    context-path: /
+
+  # ================================================================
+  # 生产数据源：强制 useSSL=true；所有值走 env
+  # ================================================================
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 生产数据库地址：通过 MYSQL_HOST/MYSQL_PORT 组合；默认值仅做兜底（生产不应落到默认值）
+    url: ${MYSQL_URL:jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/pandora?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD}         # 无默认，必须注入；缺失则启动失败
+    hikari:
+      # 生产池大幅扩容
+      minimum-idle: 10
+      maximum-pool-size: 50
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  # ================================================================
+  # Redis Cluster（3+ 主节点）
+  # ================================================================
+  data:
+    redis:
+      cluster:
+        # 集群节点列表，由 env 注入真实地址
+        nodes:
+          - ${REDIS_NODE_0:127.0.0.1:7000}
+          - ${REDIS_NODE_1:127.0.0.1:7001}
+          - ${REDIS_NODE_2:127.0.0.1:7002}
+      password: ${REDIS_PASSWORD:}
+      timeout: 5000ms
+
+  redis:
+    redisson:
+      # Redisson Cluster 模式配置
+      config: |
+        clusterServersConfig:
+          nodeAddresses:
+            - "redis://${REDIS_NODE_0:127.0.0.1:7000}"
+            - "redis://${REDIS_NODE_1:127.0.0.1:7001}"
+            - "redis://${REDIS_NODE_2:127.0.0.1:7002}"
+          password: ${REDIS_PASSWORD:}
+          masterConnectionPoolSize: 32
+          slaveConnectionPoolSize: 32
+          idleConnectionTimeout: 10000
+          timeout: 5000
+          retryAttempts: 3
+
+# 生产 Tomcat：线程/连接数大幅扩容
+server:
+  tomcat:
+    threads:
+      max: 500
+      min-spare: 50
+    max-connections: 15000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      profile: prod
+
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET}           # 无默认：生产必须注入
+    expiration: 7200
+    refresh-expiration: 604800
+
+  sms:
+    code-length: 6
+    expire-minutes: 5
+    daily-limit: 5                       # 生产严格限制，防骚扰
+    mock-enabled: false                  # 生产真实发送
+
+  wechat-mini:
+    app-id: ${WECHAT_MINI_APP_ID}
+    app-secret: ${WECHAT_MINI_APP_SECRET}
+
+  social:
+    wechat_app:
+      client-id: ${WECHAT_APP_CLIENT_ID}
+      client-secret: ${WECHAT_APP_CLIENT_SECRET}
+      redirect-uri: ${AUTH_BASE_URL}/auth/social/callback/wechat_app
+    wechat_scan:
+      client-id: ${WECHAT_SCAN_CLIENT_ID}
+      client-secret: ${WECHAT_SCAN_CLIENT_SECRET}
+      redirect-uri: ${AUTH_BASE_URL}/auth/social/callback/wechat_scan
+    wechat_quick:
+      client-id: ${WECHAT_QUICK_CLIENT_ID}
+      client-secret: ${WECHAT_QUICK_CLIENT_SECRET}
+      redirect-uri: ${AUTH_BASE_URL}/auth/social/callback/wechat_quick
+    wechat_official:
+      client-id: ${WECHAT_OFFICIAL_CLIENT_ID}
+      client-secret: ${WECHAT_OFFICIAL_CLIENT_SECRET}
+      redirect-uri: ${AUTH_BASE_URL}/auth/social/callback/wechat_official
+    enterprise_wechat:
+      client-id: ${ENTERPRISE_WECHAT_CLIENT_ID}
+      client-secret: ${ENTERPRISE_WECHAT_CLIENT_SECRET}
+      redirect-uri: ${AUTH_BASE_URL}/auth/social/callback/enterprise_wechat
+    qq:
+      client-id: ${QQ_CLIENT_ID}
+      client-secret: ${QQ_CLIENT_SECRET}
+      redirect-uri: ${AUTH_BASE_URL}/auth/social/callback/qq
+
+# 生产日志：WARN + 业务 INFO，文件滚动
+logging:
+  level:
+    root: WARN
+    cn.pandora.auth: INFO
+    org.springframework.security: WARN
+  file:
+    name: /var/log/pandora-auth/application.log
+    max-size: 100MB
+    max-history: 30
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"

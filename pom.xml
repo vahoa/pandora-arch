@@ -1,0 +1,459 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.0.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>cn.pandora</groupId>
+    <artifactId>pandora-arch</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <name>pandora-arch</name>
+    <description>基于 JDK 25 + Spring Boot 4.0 + DDD 的企业级架构底座</description>
+
+    <modules>
+        <module>pandora-common</module>
+        <module>pandora-common-cloud</module>
+        <module>pandora-domain</module>
+        <module>pandora-application</module>
+        <module>pandora-infrastructure</module>
+        <module>pandora-api</module>
+        <module>pandora-auth</module>
+        <module>pandora-start</module>
+        <!--
+            pandora-gateway：基于 Spring Cloud Gateway 2025.1.0 WebFlux（唯一允许直接依赖 spring-cloud-starter-* 的模块）
+            新 artifactId：spring-cloud-starter-gateway-server-webflux
+            新属性前缀：spring.cloud.gateway.server.webflux.*
+        -->
+        <module>pandora-gateway</module>
+        <module>pandora-service</module>
+    </modules>
+
+    <properties>
+        <java.version>25</java.version>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+        <maven.compiler.release>25</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- ========= 核心框架 ========= -->
+        <spring-boot.version>4.0.5</spring-boot.version>
+        <!--
+            spring-framework.version 禁止手动声明：Spring Boot 4.0.5 已在 BOM 中锁定当前版本
+            Spring Framework（>= 7.0.2）。手动降级到 7.0.0 会导致 Spring Security 7.0.4 找不到
+            DefaultParameterNameDiscoverer.getSharedInstance()。
+        -->
+        <!--
+            Spring Cloud 2025.1.0 (Oakwood)：首个正式针对 Spring Boot 4.0 / Spring Framework 7 编译的大版本。
+            仅为 pandora-gateway（Spring Cloud Gateway WebFlux）提供 BOM；
+            其它模块严禁直接依赖任何 org.springframework.cloud:spring-cloud-starter-*
+            （OpenFeign / LoadBalancer / Config 等），凡涉及服务注册发现、配置、流控一律走 Spring Cloud Alibaba。
+        -->
+        <spring-cloud.version>2025.1.0</spring-cloud.version>
+        <spring-cloud-alibaba.version>2025.1.0.0</spring-cloud-alibaba.version>
+        <spring-authorization-server.version>7.0.4</spring-authorization-server.version>
+
+        <!-- ========= 持久层 ========= -->
+        <mybatis-flex.version>1.11.6</mybatis-flex.version>
+        <!-- dynamic-datasource 4.5.0：对 Spring Boot 4 提供独立 boot4-starter，artifact 名变化 -->
+        <dynamic-datasource.version>4.5.0</dynamic-datasource.version>
+        <mysql-connector.version>9.6.0</mysql-connector.version>
+        <hikaricp.version>6.3.0</hikaricp.version>
+
+        <!-- ========= 缓存 / NoSQL ========= -->
+        <!-- Redisson 4.3.1：主版本跳升以获得 Spring Boot 4 官方支持（redisson-spring-data-40） -->
+        <redisson.version>4.3.1</redisson.version>
+        <!-- 与 Spring Boot 4.0.5 BOM 自动管理的 mongodb-driver-core / bson（5.6.4）对齐，避免 SyncOperations 类缺失 -->
+        <mongodb-driver.version>5.6.4</mongodb-driver.version>
+
+        <!-- ========= 消息中间件 ========= -->
+        <spring-kafka.version>4.0.1</spring-kafka.version>
+        <kafka-clients.version>3.8.1</kafka-clients.version>
+
+        <!-- ========= 工具 ========= -->
+        <springdoc.version>2.7.0</springdoc.version>
+        <mapstruct.version>1.6.3</mapstruct.version>
+        <lombok.version>1.18.44</lombok.version>
+        <hutool.version>5.8.35</hutool.version>
+        <minio.version>8.5.17</minio.version>
+        <jjwt.version>0.12.6</jjwt.version>
+        <justauth.version>1.16.7</justauth.version>
+
+        <!-- ========= AI ========= -->
+        <spring-ai.version>1.0.0</spring-ai.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- ==================== 内部模块 ==================== -->
+            <dependency>
+                <groupId>cn.pandora</groupId>
+                <artifactId>pandora-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.pandora</groupId>
+                <artifactId>pandora-domain</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.pandora</groupId>
+                <artifactId>pandora-application</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.pandora</groupId>
+                <artifactId>pandora-infrastructure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.pandora</groupId>
+                <artifactId>pandora-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.pandora</groupId>
+                <artifactId>pandora-auth</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.pandora</groupId>
+                <artifactId>pandora-common-cloud</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!--
+                ==================== Spring Cloud BOM（仅网关需要） ====================
+                仅用于统一管理 spring-cloud-starter-gateway-server-webflux 等 Spring Cloud Gateway artifact 的版本。
+                除 pandora-gateway 外，其它模块禁止直接引用 spring-cloud-starter-*。
+            -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- ==================== Spring Cloud Alibaba BOM ==================== -->
+            <dependency>
+                <groupId>com.alibaba.cloud</groupId>
+                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+                <version>${spring-cloud-alibaba.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- ==================== Spring AI BOM ==================== -->
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!--
+                ==================== 持久层：MyBatis-Flex ====================
+                强制使用 mybatis-flex-spring-boot4-starter（1.11.6 开始提供），
+                严禁引入 mybatis-plus 及其相关 starter / 适配器。
+            -->
+            <dependency>
+                <groupId>com.mybatis-flex</groupId>
+                <artifactId>mybatis-flex-spring-boot4-starter</artifactId>
+                <version>${mybatis-flex.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mybatis-flex</groupId>
+                <artifactId>mybatis-flex-core</artifactId>
+                <version>${mybatis-flex.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mybatis-flex</groupId>
+                <artifactId>mybatis-flex-processor</artifactId>
+                <version>${mybatis-flex.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <!-- dynamic-datasource：Spring Boot 4 专用 starter（artifact 名从 boot3 变为 boot4） -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>dynamic-datasource-spring-boot4-starter</artifactId>
+                <version>${dynamic-datasource.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mysql</groupId>
+                <artifactId>mysql-connector-j</artifactId>
+                <version>${mysql-connector.version}</version>
+            </dependency>
+
+            <!-- ==================== 缓存 / 分布式锁（只使用 Redisson，不使用 Lettuce/Jedis） ==================== -->
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-boot-starter</artifactId>
+                <version>${redisson.version}</version>
+                <exclusions>
+                    <!--
+                        Redisson-spring-boot-starter 默认带的是最近一代 spring-data 适配器，
+                        在这里排除所有非 40 版，确保只保留与 Spring Boot 4 / Spring Data Redis 4.0 兼容的适配器
+                    -->
+                    <exclusion>
+                        <groupId>org.redisson</groupId>
+                        <artifactId>redisson-spring-data-33</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.redisson</groupId>
+                        <artifactId>redisson-spring-data-34</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.redisson</groupId>
+                        <artifactId>redisson-spring-data-35</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.redisson</groupId>
+                        <artifactId>redisson-spring-data-36</artifactId>
+                    </exclusion>
+                    <!-- 强制移除 Lettuce（禁止同时引入两套 Redis 客户端） -->
+                    <exclusion>
+                        <groupId>io.lettuce</groupId>
+                        <artifactId>lettuce-core</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <!-- Spring Boot 4 / Spring Data Redis 4.0 专用适配器 -->
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-data-40</artifactId>
+                <version>${redisson.version}</version>
+            </dependency>
+
+            <!-- ==================== MongoDB ==================== -->
+            <dependency>
+                <groupId>org.mongodb</groupId>
+                <artifactId>mongodb-driver-sync</artifactId>
+                <version>${mongodb-driver.version}</version>
+            </dependency>
+
+            <!-- ==================== Kafka ==================== -->
+            <dependency>
+                <groupId>org.springframework.kafka</groupId>
+                <artifactId>spring-kafka</artifactId>
+                <version>${spring-kafka.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-clients</artifactId>
+                <version>${kafka-clients.version}</version>
+            </dependency>
+
+            <!-- ==================== 工具 ==================== -->
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-all</artifactId>
+                <version>${hutool.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.minio</groupId>
+                <artifactId>minio</artifactId>
+                <version>${minio.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.security</groupId>
+                <artifactId>spring-security-oauth2-authorization-server</artifactId>
+                <version>${spring-authorization-server.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>${springdoc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct-processor</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>me.zhyd.oauth</groupId>
+                <artifactId>JustAuth</artifactId>
+                <version>${justauth.version}</version>
+            </dependency>
+
+            <!-- JJWT -->
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!--
+            Spring Framework 7.0 移除了 spring-jcl 模块，运行时仍需 commons-logging 门面。
+            所有子模块一律统一兜底引入 commons-logging，确保 Boot 应用打包后可独立启动。
+        -->
+        <dependency>
+            <groupId>commons-logging</groupId>
+            <artifactId>commons-logging</artifactId>
+        </dependency>
+    </dependencies>
+
+    <repositories>
+        <repository>
+            <id>central</id>
+            <name>Maven Central</name>
+            <url>https://repo.maven.apache.org/maven2</url>
+        </repository>
+        <repository>
+            <id>spring-milestones</id>
+            <name>Spring Milestones</name>
+            <url>https://repo.spring.io/milestone</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <!-- ==================== 环境 Profile（用于区分 dev/test/prod 打包） ==================== -->
+    <profiles>
+        <!-- 开发环境（默认） -->
+        <profile>
+            <id>dev</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <spring.profiles.active>dev</spring.profiles.active>
+            </properties>
+        </profile>
+        <!-- 测试环境 -->
+        <profile>
+            <id>test</id>
+            <properties>
+                <spring.profiles.active>test</spring.profiles.active>
+            </properties>
+        </profile>
+        <!-- 生产环境 -->
+        <profile>
+            <id>prod</id>
+            <properties>
+                <spring.profiles.active>prod</spring.profiles.active>
+            </properties>
+        </profile>
+    </profiles>
+
+    <build>
+        <!-- 仅对 application.yml 做过滤，替换 @spring.profiles.active@ 占位符；其余 yml 不过滤 -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>application.yml</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>application.yml</exclude>
+                </excludes>
+            </resource>
+        </resources>
+        <pluginManagement>
+            <plugins>
+                <!-- Spring Boot 打包插件：子模块启用时自动继承排除 Lombok -->
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <configuration>
+                        <excludes>
+                            <exclude>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                            </exclude>
+                        </excludes>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+        <plugins>
+            <!-- 资源过滤插件：使用 @...@ 作为唯一占位符分隔符，避免与 Spring ${...} 冲突 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <configuration>
+                    <delimiters>
+                        <delimiter>@</delimiter>
+                    </delimiters>
+                    <useDefaultDelimiters>false</useDefaultDelimiters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <release>${java.version}</release>
+                    <!-- JDK 25 下为 Lombok 打开 javac 内部模块，消除 sun.misc.Unsafe 告警 -->
+                    <fork>true</fork>
+                    <compilerArgs>
+                        <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</arg>
+                        <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED</arg>
+                        <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>
+                        <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</arg>
+                        <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED</arg>
+                        <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED</arg>
+                        <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</arg>
+                        <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED</arg>
+                        <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</arg>
+                        <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED</arg>
+                    </compilerArgs>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
+                        </path>
+                        <path>
+                            <groupId>com.mybatis-flex</groupId>
+                            <artifactId>mybatis-flex-processor</artifactId>
+                            <version>${mybatis-flex.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

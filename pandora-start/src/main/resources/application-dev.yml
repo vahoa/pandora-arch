@@ -1,0 +1,212 @@
+################################################################################
+# 文件：application-dev.yml （pandora-start 单体开发环境）
+#
+# 【名字】 pandora-arch dev profile（单体）
+# 【用途】 本地快速启动：1 个 JVM 跑完整后端，所有中间件连本机
+# 【用法】 -Dspring.profiles.active=dev
+################################################################################
+
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  servlet:
+    context-path: /
+
+  # ================================================================
+  # 动态多数据源（MySQL 9.6）
+  # 【详细说明参考 pandora-service-user 同名区块】
+  # ================================================================
+  datasource:
+    dynamic:
+      primary: master
+      strict: false
+      datasource:
+        master:
+          url: ${MYSQL_URL:jdbc:mysql://localhost:3306/pandora?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+          username: ${MYSQL_USERNAME:root}
+          password: ${MYSQL_PASSWORD:123456}
+          driver-class-name: com.mysql.cj.jdbc.Driver
+        slave:
+          url: ${MYSQL_URL:jdbc:mysql://localhost:3306/pandora?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+          username: ${MYSQL_USERNAME:root}
+          password: ${MYSQL_PASSWORD:123456}
+          driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:
+        minimum-idle: 5
+        maximum-pool-size: 20
+        idle-timeout: 600000
+        max-lifetime: 1800000
+        connection-timeout: 30000
+        connection-test-query: SELECT 1
+
+  # ================================================================
+  # Redis（Redisson）+ MongoDB（可选）
+  # ================================================================
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:1}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000ms
+
+    # --------------------------------------------------------------
+    # MongoDB 配置
+    #   名字：spring.data.mongodb
+    #   用途：存储非结构化数据（行为日志 / 文档型数据）
+    #   用法：被 Spring Data MongoDB 自动注入；代码中用 MongoTemplate 或 Repository
+    #   配置方法：由 pandora.mongodb.enabled 总开关控制是否装配
+    # --------------------------------------------------------------
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/pandora}
+      auto-index-creation: true        # 开发期自动建索引
+
+  redis:
+    redisson:
+      config: |
+        singleServerConfig:
+          address: "redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}"
+          database: ${REDIS_DATABASE:1}
+          connectionPoolSize: 32
+          connectionMinimumIdleSize: 8
+          idleConnectionTimeout: 10000
+          timeout: 3000
+          retryAttempts: 3
+
+  # ================================================================
+  # Kafka 3.8.x（Spring Kafka 4.0.1）
+  #
+  # 【名字】 spring.kafka
+  # 【用途】 事件驱动：领域事件异步化、跨模块解耦
+  # 【用法】
+  #    - Producer: 注入 KafkaTemplate<String,String> 发送
+  #    - Consumer: @KafkaListener(topics="xxx")
+  # 【配置方法】 由 pandora.kafka.enabled 总开关控制是否装配监听器
+  # ================================================================
+  kafka:
+    # Kafka broker 地址（逗号分隔多个 broker）
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    producer:
+      retries: 3                       # 发送失败重试
+      batch-size: 16384                # 批发送字节
+      buffer-memory: 33554432          # 客户端缓冲区
+      acks: 1                          # 只需 leader 确认（吞吐优先）
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: pandora-group          # 消费者组
+      auto-offset-reset: earliest      # 无 offset 时从最早消费
+      enable-auto-commit: false        # 手动提交（配合 ack-mode=manual_immediate）
+      max-poll-records: 500
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: manual_immediate       # 手动即时 ack
+      concurrency: 10                  # 监听线程数
+
+  # ================================================================
+  # OAuth2 Resource Server（单体内仍校验 JWT）
+  # ================================================================
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${AUTH_SERVER_URL:http://localhost:9100}
+
+  # ================================================================
+  # Spring AI（OpenAI Compatible）
+  #
+  # 【名字】 spring.ai.openai
+  # 【用途】 集成 GPT / 通义千问 / DeepSeek 等兼容 OpenAI 协议的模型
+  # 【用法】 注入 ChatClient 自动调用
+  # 【配置方法】 把 base-url 指到模型服务网关；api-key 走 KMS
+  # ================================================================
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-your-key-here}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-4o-mini}
+          temperature: 0.7              # 生成发散度 0~2
+          max-tokens: 2048              # 单次生成 token 上限
+
+server:
+  tomcat:
+    threads:
+      max: 500
+      min-spare: 50
+    max-connections: 10000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      profile: dev
+
+# ================================================================
+# auth.*：JWT 密钥与 auth-server 地址（供单体内 JwtUtil 使用）
+# ================================================================
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET:pandora-arch-jwt-secret-key-must-be-at-least-256-bits-long-2026}
+  server-url: ${AUTH_SERVER_URL:http://localhost:9100}
+
+# MinIO：单体内部直接使用
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket: ${MINIO_BUCKET:corp-web}
+
+# ================================================================
+# pandora.* ：本项目自定义总开关
+#
+# 【名字】 pandora.kafka.enabled / pandora.mongodb.enabled
+# 【用途】 中间件「存在即装配」的总闸：缺失时不启用相关 Bean 避免启动失败
+# 【用法】 在 @ConditionalOnProperty 上用这个 key
+# 【配置方法】 true/false，生产开，本地默认 false（中间件全就绪时可打开）
+# ================================================================
+pandora:
+  kafka:
+    # Kafka 监听器总闸：中间件全部就绪后可改为 true
+    enabled: true
+  mongodb:
+    # Mongo Repository 总闸
+    enabled: true
+
+mybatis-flex:
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    print-banner: false
+    normal-value-of-logic-delete: 0
+    deleted-value-of-logic-delete: 1
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    cn.pandora: DEBUG
+    com.mybatisflex: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+  # 不自定义 pattern.console，使用 Spring Boot 默认带 %clr(...) 的彩色 pattern；
+  # 由 application.yml 的 spring.output.ansi.enabled=ALWAYS 开启颜色。

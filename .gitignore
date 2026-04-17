@@ -1,0 +1,16 @@
+target/
+*.class
+*.jar
+*.war
+*.ear
+.idea/
+*.iml
+.vscode/
+*.log
+.DS_Store
+docs/sql/
+docs/test/
+docs/对话/
+docs/命令/
+logs/
+scripts/

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>cn.pandora</groupId>
+        <artifactId>pandora-arch</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>pandora-api</artifactId>
+    <name>DDD接口层</name>
+    <description>REST控制器、全局异常处理、Swagger配置</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>cn.pandora</groupId>
+            <artifactId>pandora-application</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>cn.pandora</groupId>
+            <artifactId>pandora-infrastructure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>cn.pandora</groupId>
+            <artifactId>pandora-common</artifactId>
+        </dependency>
+
+        <!-- Spring Web -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- SpringDoc OpenAPI / Swagger -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        </dependency>
+
+        <!-- Spring Security（编译期需要，用于注解） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

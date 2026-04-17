@@ -1,0 +1,188 @@
+################################################################################
+# 文件：application-dev.yml （pandora-service-user 开发环境）
+#
+# 【名字】 pandora-service-user dev profile
+# 【用途】 用户域服务的本地联调：动态多数据源 + Redisson + MinIO + OAuth2 Resource Server
+# 【用法】 -Dspring.profiles.active=dev
+################################################################################
+
+spring:
+  config:
+    activate:
+      on-profile: dev
+    import:
+      - optional:nacos:pandora-service-user-dev.yml?group=${NACOS_REMOTE_GROUP:DEV}&refreshEnabled=true
+
+  servlet:
+    context-path: /
+
+  cloud:
+    # ================================================================
+    # Sentinel：流量治理（同 gateway 结构）
+    # ================================================================
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8858}
+        port: 8719
+      datasource:
+        flow:
+          nacos:
+            server-addr: ${spring.cloud.nacos.server-addr}
+            dataId: ${spring.application.name}-dev-flow-rules
+            groupId: SENTINEL_GROUP
+            rule-type: flow
+        degrade:
+          nacos:
+            server-addr: ${spring.cloud.nacos.server-addr}
+            dataId: ${spring.application.name}-dev-degrade-rules
+            groupId: SENTINEL_GROUP
+            rule-type: degrade
+
+  # ================================================================
+  # 动态多数据源（dynamic-datasource-spring-boot4-starter 4.5.0）
+  #
+  # 【名字】 spring.datasource.dynamic
+  # 【用途】 同一应用内声明多个数据源（master/slave 或 DB1/DB2），
+  #         代码中用 @DS("slave") 注解在 Service/Mapper 方法上自由切换
+  # 【用法】
+  #     @DS("master") public User save(...)   // 写库
+  #     @DS("slave")  public User load(...)   // 读库
+  # 【配置方法】
+  #     primary 指定默认数据源；strict=false 允许找不到回退到 primary
+  # ================================================================
+  datasource:
+    dynamic:
+      primary: master                  # 默认走 master
+      strict: false                     # 宽松模式：@DS 没匹配上时回退到 primary
+      datasource:
+        master:                         # 主库（写）
+          url: ${MYSQL_URL:jdbc:mysql://localhost:3306/pandora?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+          username: ${MYSQL_USERNAME:root}
+          password: ${MYSQL_PASSWORD:123456}
+          driver-class-name: com.mysql.cj.jdbc.Driver
+        slave:                          # 从库（读）——开发期与主库地址相同，便于调试
+          url: ${MYSQL_URL:jdbc:mysql://localhost:3306/pandora?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+          username: ${MYSQL_USERNAME:root}
+          password: ${MYSQL_PASSWORD:123456}
+          driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:                          # 动态数据源全局 Hikari 池参数
+        minimum-idle: 5
+        maximum-pool-size: 20
+        idle-timeout: 600000
+        max-lifetime: 1800000
+        connection-timeout: 30000
+        connection-test-query: SELECT 1
+
+  # ================================================================
+  # Redis：仅 Redisson（项目已禁止 Lettuce/Jedis）
+  # ================================================================
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:1}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000ms
+
+  redis:
+    redisson:
+      config: |
+        singleServerConfig:
+          address: "redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}"
+          database: ${REDIS_DATABASE:1}
+          connectionPoolSize: 16
+          connectionMinimumIdleSize: 4
+          idleConnectionTimeout: 10000
+          timeout: 3000
+          retryAttempts: 3
+
+  # ================================================================
+  # OAuth2 Resource Server
+  #
+  # 【名字】 spring.security.oauth2.resourceserver.jwt
+  # 【用途】 把本服务声明为 OAuth2 资源服务器，所有 API 默认要求 JWT
+  # 【用法】 请求头 Authorization: Bearer <jwt>；JWT 由 auth-server 签发
+  # 【配置方法】 issuer-uri 指向 auth-server，Spring Security 自动拉取 JWKs
+  # ================================================================
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${AUTH_SERVER_URL:http://localhost:9100}
+
+# Tomcat 线程/连接数（开发中等容量）
+server:
+  tomcat:
+    threads:
+      max: 300
+      min-spare: 30
+    max-connections: 8000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      profile: dev
+
+# ================================================================
+# MinIO 对象存储配置
+#
+# 【名字】 minio
+# 【用途】 用户头像 / 附件 / 导入导出文件 的存储
+# 【用法】 由 cn.pandora.common.minio.MinioClientWrapper 读取，封装成 Service
+# 【配置方法】 生产用 env 注入 AK/SK；开发默认 127.0.0.1:9000 minioadmin
+# ================================================================
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket: ${MINIO_BUCKET:corp-web}
+
+# ================================================================
+# MyBatis-Flex（项目已从 MyBatis-Plus 完全迁移至 MyBatis-Flex 1.11.6）
+#
+# 【名字】 mybatis-flex
+# 【用途】 ORM 框架；用 QueryWrapper / Row / BaseMapper 操作 DB
+# 【用法】 @Table 映射实体；@Id 主键；@Column 字段
+# 【配置方法】 全局开关在此，Mapper XML 走类路径 classpath:mapper/*.xml
+# ================================================================
+mybatis-flex:
+  configuration:
+    # 下划线 → 驼峰映射（DB user_name ↔ Java userName）
+    map-underscore-to-camel-case: true
+    cache-enabled: true
+    # 开发期把 SQL 打到控制台（生产切到 NoLog）
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    print-banner: false                        # 关闭启动 banner
+    normal-value-of-logic-delete: 0            # 逻辑删除：0=未删除
+    deleted-value-of-logic-delete: 1           # 逻辑删除：1=已删除
+
+# ================================================================
+# SpringDoc OpenAPI 3.1（Swagger UI）
+# 访问路径：
+#   /v3/api-docs    —— 规范 JSON
+#   /swagger-ui.html —— UI 界面
+# ================================================================
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha         # Tag 按字母排序
+    operations-sorter: alpha   # 操作按字母排序
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    cn.pandora: DEBUG
+    com.mybatisflex: DEBUG       # 打印 SQL + 参数
+    org.springframework.web: DEBUG
+  # 不自定义 pattern.console，使用 Spring Boot 默认带 %clr(...) 的彩色 pattern；
+  # 由 application.yml 的 spring.output.ansi.enabled=ALWAYS 开启颜色。

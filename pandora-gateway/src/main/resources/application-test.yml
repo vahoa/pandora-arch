@@ -1,0 +1,116 @@
+################################################################################
+# 文件：application-test.yml （pandora-gateway 测试环境）
+#
+# 【名字】 pandora-gateway test profile
+# 【用途】 QA/联调测试集群；注入更接近生产的限流与日志级别
+# 【用法】 启动命令：-Dspring.profiles.active=test
+# 【配置方法】 所有关键中间件地址都通过环境变量注入；Nacos 集群同开发
+# 配套 Nacos 远程 DataId：pandora-gateway-test.yml（group=TEST_GROUP）
+################################################################################
+
+spring:
+  config:
+    activate:
+      on-profile: test
+    import:
+      # Nacos 远程配置；optional 允许启动时 Nacos 不可达（避免阻塞 QA 自测）
+      - optional:nacos:pandora-gateway-test.yml?group=${NACOS_REMOTE_GROUP:TEST_GROUP}&refreshEnabled=true
+
+  # ================================================================
+  # Reactive Redis：测试集群 Redis 单节点（为 QA 隔离使用）
+  # ================================================================
+  data:
+    redis:
+      host: ${REDIS_HOST:redis-test}      # 测试环境 Redis 主机（内网 DNS）
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DB:0}
+      timeout: 3000ms
+      # 测试 Redis 如有密码请显式放开；无密码务必不要写 password 键（Redisson 4.3.1 规则）
+      # password: ${REDIS_PASSWORD}
+
+  # Redisson 原生 YAML（与 gateway dev 同结构）
+  redis:
+    redisson:
+      config: |
+        singleServerConfig:
+          address: "redis://${REDIS_HOST:redis-test}:${REDIS_PORT:6379}"
+          database: ${REDIS_DB:0}
+          connectionPoolSize: 16
+          connectionMinimumIdleSize: 4
+          idleConnectionTimeout: 10000
+          timeout: 3000
+          retryAttempts: 3
+
+  cloud:
+    # ================================================================
+    # Sentinel：测试环境启用完整的流控/降级规则（由 Nacos 下发）
+    # ================================================================
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:sentinel-dashboard:8858}
+        port: 8719
+      datasource:
+        flow:
+          nacos:
+            server-addr: ${spring.cloud.nacos.server-addr}
+            dataId: ${spring.application.name}-test-flow-rules
+            groupId: SENTINEL_GROUP
+            rule-type: flow
+        degrade:
+          nacos:
+            server-addr: ${spring.cloud.nacos.server-addr}
+            dataId: ${spring.application.name}-test-degrade-rules
+            groupId: SENTINEL_GROUP
+            rule-type: degrade
+
+    # ================================================================
+    # Gateway 路由：结构与 dev 一致，但阈值由 pandora.gateway.ratelimit 变更
+    # ================================================================
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+          default-filters:
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE
+          routes:
+            - id: pandora-service-user
+              uri: lb://pandora-service-user
+              predicates:
+                - Path=/api/users/**
+              filters:
+                - StripPrefix=0
+            - id: pandora-auth-server
+              uri: lb://pandora-auth-server
+              predicates:
+                - Path=/auth/**,/oauth2/**,/.well-known/**
+              filters:
+                - StripPrefix=0
+
+# 限流阈值：测试环境稍放（QA 压测需要较高上限）
+pandora:
+  gateway:
+    ratelimit:
+      default-replenish-rate: 50   # 默认 API QPS
+      default-burst-capacity: 100  # 默认 API 突发
+      login-replenish-rate: 10     # 登录 QPS
+      login-burst-capacity: 20     # 登录突发
+
+management:
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      profile: test
+
+# 测试环境日志：从 DEBUG 收敛到 INFO（减少磁盘压力、保留关键调用链）
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    cn.pandora: INFO
+  # 不自定义 pattern.console，使用 Spring Boot 默认带 %clr(...) 的彩色 pattern；
+  # 由 application.yml 的 spring.output.ansi.enabled=ALWAYS 开启颜色。

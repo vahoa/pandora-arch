@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>cn.pandora</groupId>
+        <artifactId>pandora-arch</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>pandora-common-cloud</artifactId>
+    <name>DDD微服务公共模块</name>
+    <description>
+        微服务模式公共依赖：仅包含 Spring Cloud Alibaba 相关能力（Nacos 服务注册与配置、Sentinel 流控）。
+        严禁引入 org.springframework.cloud:spring-cloud-starter-* 任何直接依赖。
+        远程调用建议使用 Spring Boot 原生 RestClient + Nacos NamingService 自行选址，或 Dubbo。
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>cn.pandora</groupId>
+            <artifactId>pandora-common</artifactId>
+        </dependency>
+
+        <!-- Nacos 服务注册发现（Spring Cloud Alibaba） -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
+        <!-- Nacos 配置中心（Spring Cloud Alibaba） -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
+
+        <!-- Sentinel 流量控制与熔断降级（Spring Cloud Alibaba） -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
+        </dependency>
+        <!-- Sentinel 规则 Nacos 数据源：从 Nacos 热拉取 flow/degrade 规则
+             当 application.yml 里配置 spring.cloud.sentinel.datasource.*.nacos 时必须 -->
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-datasource-nacos</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Web -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

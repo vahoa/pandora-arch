@@ -1,0 +1,40 @@
+################################################################################
+# 文件：application.yml （pandora-start 单体启动入口主配置）
+#
+# 【名字】 pandora-arch application.yml（单体模式）
+# 【用途】 单体模式启动入口（不注册到 Nacos，不拉取远程配置）；
+#         一套代码既可作微服务分布式部署，也可作单体快速部署
+# 【用法】 启动类：cn.pandora.start.PandoraStartApplication
+#         默认命令：java -Dspring.profiles.active=dev -jar pandora-start.jar
+# 【配置方法】 单体模式下，所有中间件都走本机默认值或 env 注入；不依赖 Nacos
+################################################################################
+
+server:
+  # 单体入口端口（含所有业务：auth + user + gateway 的聚合）
+  port: 8080
+  # 响应 gzip 压缩（浏览器默认支持，省带宽）
+  compression:
+    enabled: true
+
+management:
+  server:
+    # 单体运维端口（与业务端口分离）
+    port: 18080
+
+spring:
+  application:
+    # 单体模式下的应用名（也是日志、metrics 的标签）
+    name: pandora-arch
+  profiles:
+    # 由 Maven profile 过滤写入
+    active: @spring.profiles.active@
+
+  # ==================================================================
+  # 控制台 ANSI 彩色日志（与 Spring Boot 原生启动样式一致）
+  # ALWAYS: 强制启用（Windows PowerShell / Windows Terminal / IDEA 控制台均支持）
+  # DETECT: 自动检测（部分终端会识别失败退化为无色）
+  # NEVER : 关闭（用于纯文件输出场景）
+  # ==================================================================
+  output:
+    ansi:
+      enabled: ALWAYS

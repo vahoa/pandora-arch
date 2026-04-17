@@ -1,0 +1,142 @@
+################################################################################
+# 文件：application-test.yml （pandora-start 单体测试环境）
+#
+# 【名字】 pandora-arch test profile（单体）
+# 【用途】 QA 环境单体部署；DB=pandora_test，Redis=2 号库
+################################################################################
+
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  servlet:
+    context-path: /
+
+  datasource:
+    dynamic:
+      primary: master
+      strict: false
+      datasource:
+        master:
+          url: ${MYSQL_URL:jdbc:mysql://localhost:3306/pandora_test?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+          username: ${MYSQL_USERNAME:root}
+          password: ${MYSQL_PASSWORD:123456}
+          driver-class-name: com.mysql.cj.jdbc.Driver
+        slave:
+          url: ${MYSQL_URL:jdbc:mysql://localhost:3306/pandora_test?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+          username: ${MYSQL_USERNAME:root}
+          password: ${MYSQL_PASSWORD:123456}
+          driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:
+        minimum-idle: 5
+        maximum-pool-size: 20
+        idle-timeout: 600000
+        max-lifetime: 1800000
+        connection-timeout: 30000
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:2}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000ms
+    # 测试环境 MongoDB
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/pandora_test}
+      auto-index-creation: true
+
+  redis:
+    redisson:
+      config: |
+        singleServerConfig:
+          address: "redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}"
+          database: ${REDIS_DATABASE:2}
+          connectionPoolSize: 16
+          connectionMinimumIdleSize: 4
+          idleConnectionTimeout: 10000
+          timeout: 3000
+          retryAttempts: 3
+
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    producer:
+      retries: 3
+      acks: 1
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: pandora-group-test       # 测试独立消费组，避免串消费
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: manual_immediate
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${AUTH_SERVER_URL:http://localhost:9100}
+
+server:
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 20
+    max-connections: 5000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      profile: test
+
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET:pandora-arch-jwt-secret-key-must-be-at-least-256-bits-long-2026}
+  server-url: ${AUTH_SERVER_URL:http://localhost:9100}
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket: ${MINIO_BUCKET:corp-web}
+
+pandora:
+  kafka:
+    enabled: true       # 测试环境开启 Kafka
+  mongodb:
+    enabled: true       # 测试环境开启 MongoDB
+
+mybatis-flex:
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: true
+  global-config:
+    print-banner: false
+    normal-value-of-logic-delete: 0
+    deleted-value-of-logic-delete: 1
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    cn.pandora: INFO
+    com.mybatisflex: INFO
+    org.springframework.web: INFO
+  # 不自定义 pattern.console，使用 Spring Boot 默认带 %clr(...) 的彩色 pattern；
+  # 由 application.yml 的 spring.output.ansi.enabled=ALWAYS 开启颜色。

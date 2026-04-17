@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>cn.pandora</groupId>
+        <artifactId>pandora-arch</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>pandora-gateway</artifactId>
+    <name>Pandora微服务网关</name>
+    <description>
+        基于 Spring Cloud Gateway 2025.1.0 WebFlux 版本的 API 网关。
+        集成 Spring Cloud Alibaba Nacos 做服务注册与发现、Sentinel 做流控与熔断。
+        Spring Cloud 2025.1.0 起将 Gateway 拆分为 server-webflux / server-webmvc 两个独立 starter。
+    </description>
+
+    <dependencies>
+        <!-- 项目内部公共模块：Result 等统一响应体 -->
+        <dependency>
+            <groupId>cn.pandora</groupId>
+            <artifactId>pandora-common</artifactId>
+        </dependency>
+
+        <!--
+            Spring Cloud Gateway（WebFlux 响应式）
+            Spring Cloud 2025.x 起 artifactId 已拆分：
+              spring-cloud-starter-gateway-server-webflux ：响应式（WebFlux）
+              spring-cloud-starter-gateway-server-webmvc  ：同步（Servlet）
+            属性前缀：spring.cloud.gateway.server.webflux.*
+        -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
+        </dependency>
+
+        <!-- SCA Nacos 服务发现 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
+        <!-- SCA Nacos 配置中心 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
+
+        <!-- SCA Sentinel 限流 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
+        </dependency>
+        <!-- Sentinel 规则 Nacos 数据源：从 Nacos 热拉取 flow/degrade 规则
+             当 application.yml 里配置 spring.cloud.sentinel.datasource.*.nacos 时必须 -->
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-datasource-nacos</artifactId>
+        </dependency>
+
+        <!-- Spring Cloud LoadBalancer：Gateway 通过 lb:// 路由时需要 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+
+        <!-- Actuator：暴露 gateway、health 等管理端点 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!--
+            ==================== 安全 / 鉴权 ====================
+            JJWT：网关层解析并校验 JWT（不重签发，只验证+透传用户上下文）
+        -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!--
+            ==================== Redis（Redisson 4.3.1） ====================
+            用于黑名单校验、限流令牌桶、用户 token 代次校验
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.lettuce</groupId>
+                    <artifactId>lettuce-core</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-data-40</artifactId>
+        </dependency>
+
+        <!-- 工具库 -->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>cn.pandora.gateway.GatewayApplication</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

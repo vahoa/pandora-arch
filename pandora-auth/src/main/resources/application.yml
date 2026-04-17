@@ -1,0 +1,80 @@
+################################################################################
+# 文件：application.yml （pandora-auth 主配置）
+#
+# 【名字】 pandora-auth-server application.yml
+# 【用途】 OAuth2 授权服务器（Spring Authorization Server 1.4）的公共基础配置：
+#           端口、应用名、Profile 激活、Nacos 注册与配置中心
+# 【用法】 Spring Boot 启动时自动加载；必须通过
+#           -Dspring.profiles.active=dev|test|prod 指定激活环境
+# 【配置方法】 所有关键外部依赖均可通过 env / -D / Nacos 远程配置 覆写
+################################################################################
+
+# ==================================================================
+# server：对外提供 OAuth2 协议端点（/oauth2/token、/login 等）的端口
+# ==================================================================
+server:
+  # 认证服务器业务端口
+  port: 9100
+
+# ==================================================================
+# management：Actuator 管理端口（与业务端口物理隔离）
+# ==================================================================
+management:
+  server:
+    # 运维端口（供 Prometheus/健康探针 使用）
+    port: 19100
+
+# ==================================================================
+# spring.application.name：
+#   作用 1 —— Nacos 服务名（被网关以 lb://pandora-auth-server 发现）
+#   作用 2 —— Nacos 远程 DataId 前缀（pandora-auth-server-{profile}.yml）
+# ==================================================================
+spring:
+  application:
+    name: pandora-auth-server
+  profiles:
+    active: @spring.profiles.active@
+
+  # ==================================================================
+  # 控制台 ANSI 彩色日志（与 Spring Boot 原生启动样式一致）
+  # ALWAYS: 强制启用（Windows PowerShell / Windows Terminal / IDEA 控制台均支持）
+  # DETECT: 自动检测（在部分终端会识别失败退化为无色）
+  # NEVER : 关闭（用于纯文件输出场景）
+  # ==================================================================
+  output:
+    ansi:
+      enabled: ALWAYS
+
+  cloud:
+    # ================================================================
+    # Nacos 集群配置（与 gateway 共用同一集群）
+    #
+    # 集群节点：
+    #   192.168.50.168:8140
+    #   192.168.50.168:8550
+    #   192.168.50.168:8960
+    # ================================================================
+    nacos:
+      # 集群地址（逗号分隔；SDK 自动做负载与故障转移）
+      server-addr: ${NACOS_SERVER_ADDR:192.168.50.168:8140,192.168.50.168:8550,192.168.50.168:8960}
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:nacos}
+      namespace: ${NACOS_NAMESPACE:}
+      # 注册中心
+      discovery:
+        # NACOS_ENABLED 控制总开关（本地可关闭，只跑单体）
+        enabled: ${NACOS_ENABLED:true}
+        group: ${spring.profiles.active}
+        namespace: ${spring.cloud.nacos.namespace}
+        metadata:
+          version: 1.0.0
+          region: ${REGION:default}
+        heart-beat-interval: 5000
+        heart-beat-timeout: 15000
+      # 配置中心（auth-server 的登录策略、短信模板等放 Nacos 便于热更）
+      config:
+        enabled: ${NACOS_ENABLED:true}
+        group: ${spring.profiles.active}
+        file-extension: yml
+        namespace: ${spring.cloud.nacos.namespace}
+        refresh-enabled: true

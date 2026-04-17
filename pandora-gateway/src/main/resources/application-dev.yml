@@ -1,0 +1,172 @@
+################################################################################
+# 文件：application-dev.yml （pandora-gateway 开发环境）
+#
+# 【名字】 pandora-gateway dev profile
+# 【用途】 本地开发/联调专用；指向本机或内网开发集群的中间件
+# 【用法】 启动命令必须带 -Dspring.profiles.active=dev
+#         或在 IDE Run 配置里设置 Active Profile=dev
+# 【配置方法】 所有 ${VAR:default} 都可由环境变量/JVM -D/Nacos 覆写
+#
+# 配套 Nacos 远程 DataId：pandora-gateway-dev.yml（group=DEV）
+################################################################################
+
+spring:
+  # ================================================================
+  # config.activate.on-profile：本文件仅在 profile=dev 时生效
+  # config.import：开发期从 Nacos 拉取远程配置（optional 表示 Nacos 挂掉也能启动）
+  # ================================================================
+  config:
+    activate:
+      on-profile: dev
+    import:
+      # optional: 前缀 → Nacos 不可达时不会阻塞启动（开发友好）
+      # refreshEnabled=true → 远程配置变更时自动热刷新
+      - optional:nacos:pandora-gateway-dev.yml?group=${NACOS_REMOTE_GROUP:DEV}&refreshEnabled=true
+
+  # ================================================================
+  # data.redis：Reactive Redis 连接（Redisson 实现，Lettuce 在 pom 已 exclude）
+  #
+  # 【名字】 Spring Data Reactive Redis
+  # 【用途】 网关做 JWT 黑名单 / 限流计数 / Key-Resolver 的存储后端
+  # 【用法】 由 Spring Cloud Gateway 的 RedisRateLimiter & 自定义
+  #         RedisTokenBlacklistStore 自动使用
+  # 【配置方法】 本地默认 localhost:6379；运维用 REDIS_HOST / REDIS_PORT 覆写
+  # ================================================================
+  data:
+    redis:
+      # Redis 主机（单机模式）——开发直连本地
+      host: ${REDIS_HOST:localhost}
+      # Redis 端口
+      port: ${REDIS_PORT:6379}
+      # 逻辑库编号 0~15；网关使用 0 号库做限流/黑名单
+      database: ${REDIS_DB:0}
+      # 连接/命令超时
+      timeout: 3000ms
+      # 注意：password 有意不写此处——Redisson 4.3.1 会把空串当作"有密码"
+      # 而发送 AUTH 命令；若需启用密码，请放开下方 password 注释并设置真实密码
+      # password: ${REDIS_PASSWORD}
+
+  # ================================================================
+  # Redisson 原生 YAML 配置（与上面 spring.data.redis 合并，以 redisson 为准）
+  #   用途：Spring Cloud Gateway 的响应式 Redis 连接工厂（限流 + JWT 黑名单）
+  #   配置方法：无密码场景不要写 password 键；生产集群改用 clusterServersConfig
+  # ================================================================
+  redis:
+    redisson:
+      config: |
+        singleServerConfig:
+          address: "redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}"
+          database: ${REDIS_DB:0}
+          connectionPoolSize: 16
+          connectionMinimumIdleSize: 4
+          idleConnectionTimeout: 10000
+          timeout: 3000
+          retryAttempts: 3
+
+  cloud:
+    # ================================================================
+    # Sentinel：Spring Cloud Alibaba 流量治理组件
+    #
+    # 【名字】 Sentinel Transport 客户端
+    # 【用途】 上报实时指标到 Sentinel Dashboard，并从 Nacos 拉取流控/降级规则
+    # 【用法】 被网关的 @SentinelResource 或 GatewayFlowRule 自动使用
+    # 【配置方法】 通过 SENTINEL_DASHBOARD 环境变量指向仪表盘地址
+    # ================================================================
+    sentinel:
+      transport:
+        # Sentinel Dashboard 控制台地址
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8858}
+        # 客户端与 Dashboard 通信端口（Sentinel 主动上报）
+        port: 8719
+      # 从 Nacos 拉取流控/降级规则（规则 JSON 存在 Nacos，DataId 命名见下）
+      datasource:
+        flow:
+          nacos:
+            server-addr: ${spring.cloud.nacos.server-addr}
+            dataId: ${spring.application.name}-dev-flow-rules
+            groupId: SENTINEL_GROUP
+            rule-type: flow        # 流控规则
+        degrade:
+          nacos:
+            server-addr: ${spring.cloud.nacos.server-addr}
+            dataId: ${spring.application.name}-dev-degrade-rules
+            groupId: SENTINEL_GROUP
+            rule-type: degrade     # 熔断降级规则
+
+    # ================================================================
+    # Spring Cloud Gateway 5.0（配合 Boot 4.0）
+    #
+    # 【名字】 gateway.server.webflux（SCG 2025.x 新前缀，取代 spring.cloud.gateway.*）
+    # 【用途】 声明路由表 + 内置过滤器
+    # 【用法】 每个 route 由 predicates 命中后 lb:// 负载均衡到目标服务
+    # 【配置方法】 限流过滤器 RequestRateLimiter 已移到
+    #              cn.pandora.gateway.config.RateLimitRouteConfig 动态挂载（避免无 Redis 无法启动）
+    # ================================================================
+    gateway:
+      server:
+        webflux:
+          # 服务发现路由：基于 Nacos 服务名自动生成路由（lb://<service>）
+          discovery:
+            locator:
+              enabled: true                 # 打开自动路由
+              lower-case-service-id: true   # 服务名小写，避免大小写不一致
+          # 全局默认过滤器：对所有路由生效
+          default-filters:
+            - name: Retry
+              args:
+                retries: 2                                   # 失败重试次数
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE    # 这些状态触发重试
+          # 路由表（id 必须唯一；predicates 命中后 lb 到 uri）
+          routes:
+            # 路由 1：用户服务（用户管理 REST API）
+            - id: pandora-service-user
+              uri: lb://pandora-service-user        # 从 Nacos 按服务名负载均衡
+              predicates:
+                - Path=/api/users/**
+              filters:
+                - StripPrefix=0                     # 不剥离路径前缀
+            # 路由 2：认证服务（登录/OAuth2 协议端点）
+            - id: pandora-auth-server
+              uri: lb://pandora-auth-server
+              predicates:
+                - Path=/auth/**,/oauth2/**,/.well-known/**
+              filters:
+                - StripPrefix=0
+
+# ==================================================================
+# pandora.gateway.ratelimit 区块
+#   名字：网关限流阈值（自定义前缀，由 RateLimitRouteConfig 读取）
+#   用途：定义默认路由 & 登录路由的令牌桶参数
+#   用法：仅当 Spring 容器中存在 RedisRateLimiter Bean 时才会应用
+#   配置方法：可按环境差异化（dev 放松、test 收紧、prod 最严）
+# ==================================================================
+pandora:
+  gateway:
+    ratelimit:
+      default-replenish-rate: 30   # 普通 API：每秒补充令牌数（QPS 上限）
+      default-burst-capacity: 60   # 普通 API：令牌桶容量（允许的瞬时突发）
+      login-replenish-rate: 5      # 登录接口：每秒补充令牌数（防爆破）
+      login-burst-capacity: 10     # 登录接口：桶容量
+
+# ==================================================================
+# management.metrics.tags：Micrometer 全局标签
+#   用途：所有指标带上 application & profile 标签，便于 Grafana 分析
+# ==================================================================
+management:
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      profile: dev
+
+# ==================================================================
+# logging：日志配置
+#   用途：开发环境打开 Gateway/Reactor 的详细日志以便排查路由问题
+#   配置方法：生产切到 WARN；本地可细粒度改某包 TRACE
+# ==================================================================
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG   # 路由匹配/过滤器链 详情
+    reactor.netty.http.server: INFO            # Netty HTTP 服务端（细节多，INFO 即可）
+    cn.pandora: DEBUG                           # 业务包自身日志
+  # 不自定义 pattern.console，使用 Spring Boot 默认带 %clr(...) 的彩色 pattern；
+  # 由 application.yml 的 spring.output.ansi.enabled=ALWAYS 开启颜色。

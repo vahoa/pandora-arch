@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>cn.pandora</groupId>
+        <artifactId>pandora-service</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>pandora-service-user</artifactId>
+    <name>用户微服务</name>
+    <description>用户限界上下文微服务，包含用户管理相关的全部 DDD 分层</description>
+
+    <dependencies>
+        <!-- 微服务公共模块（Nacos、Sentinel、Feign） -->
+        <dependency>
+            <groupId>cn.pandora</groupId>
+            <artifactId>pandora-common-cloud</artifactId>
+        </dependency>
+
+        <!-- DDD 基础设施层（含 MyBatis-Flex、Redis、Security） -->
+        <dependency>
+            <groupId>cn.pandora</groupId>
+            <artifactId>pandora-infrastructure</artifactId>
+        </dependency>
+
+        <!-- DDD 接口层（含 Controller、异常处理、Swagger） -->
+        <dependency>
+            <groupId>cn.pandora</groupId>
+            <artifactId>pandora-api</artifactId>
+        </dependency>
+
+        <!-- Actuator -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- 测试 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>cn.pandora.service.user.UserServiceApplication</mainClass>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
