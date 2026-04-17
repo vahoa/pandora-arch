@@ -1,4 +1,4 @@
-# CI / CD 全流水线部署（Git + Docker + GitHub Actions / GitLab CI / Jenkins）
+﻿# CI / CD 全流水线部署（Git + Docker + GitHub Actions / GitLab CI / Jenkins）
 
 > 目标：从 Git 推送到生产发布全自动：
 > `push → lint → test → build JAR → build image → push registry → deploy k8s/compose → health check → notify`
@@ -568,3 +568,10 @@ spec:
 - [ ] 安全：HTTPS、WAF、防重放、权限最小化
 - [ ] 容量：HPA（CPU 70%）+ 压测报告
 - [ ] DR：每季度做一次机房故障演练
+
+---
+
+> **作者**：vahoa  
+> **日期**：2026 年  
+> **作品**：pandora-arch · DDD 架构底座  
+> **版权**：© 2026 vahoa. All rights reserved.

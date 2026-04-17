@@ -1,4 +1,4 @@
-# Kafka 3.8.x on Windows 11 部署与使用
+﻿# Kafka 3.8.x on Windows 11 部署与使用
 
 > 适用版本：Apache Kafka 3.8.1（KRaft 模式，无 ZooKeeper）· Spring Kafka 4.0.1
 > 目标：Windows 11 本地单节点 + 伪分布式三节点，含 pandora-arch 端收发示例
@@ -260,3 +260,10 @@ public class OrderKafkaListener {
 - **Offset Explorer**：桌面客户端，Windows 友好
 - **Prometheus + Kafka Exporter + Grafana**：指标监控
 - **Burrow**（LinkedIn 出品）：消费者 lag 告警
+
+---
+
+> **作者**：vahoa  
+> **日期**：2026 年  
+> **作品**：pandora-arch · DDD 架构底座  
+> **版权**：© 2026 vahoa. All rights reserved.

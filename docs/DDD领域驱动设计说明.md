@@ -1,6 +1,9 @@
-# DDD领域驱动设计 — 四层架构设计说明
+﻿# DDD领域驱动设计 — 四层架构设计说明
 
-本文档描述基于 **Spring Boot 3.2 + DDD** 四层架构的底座设计，旨在为团队提供清晰的架构理解和开发规范。
+本文档描述基于 **JDK 25 + Spring Boot 4.0.5 + DDD** 四层架构的底座设计，旨在为团队提供清晰的架构理解和开发规范。
+
+> 基线：JDK 25 + Spring Boot 4.0.5 + Spring Cloud Alibaba 2025.1.0.0 + MyBatis-Flex 1.11.6 + Redisson 4.3.1
+> 更新日期：2026-04
 
 ---
 
@@ -317,15 +320,17 @@ public class UserRepositoryImpl implements UserRepository {
 
 #### 2.3.2 数据对象：UserDO
 
-与领域模型分离的数据库映射对象，使用 MyBatis-Plus 注解：
+与领域模型分离的数据库映射对象，使用 **MyBatis-Flex** 注解：
 
 ```java
 // UserDO.java
+import com.mybatisflex.annotation.*;
+
 @Data
-@TableName("sys_user")
+@Table("sys_user")
 public class UserDO {
 
-    @TableId(type = IdType.AUTO)
+    @Id(keyType = KeyType.Auto)
     private Long id;
 
     private String username;
@@ -334,23 +339,44 @@ public class UserDO {
     private String phone;
     private Integer status;
 
-    @TableField(fill = FieldFill.INSERT)
+    // 由 InsertListener 自动填充
     private LocalDateTime createTime;
 
-    @TableField(fill = FieldFill.INSERT_UPDATE)
+    // 由 InsertListener / UpdateListener 自动填充
     private LocalDateTime updateTime;
 
-    @TableLogic
+    @Column(isLogicDelete = true)
     private Integer deleted;
 }
 ```
 
-#### 2.3.3 MyBatis-Plus Mapper：UserMapper
+> **从 MyBatis-Plus 到 MyBatis-Flex 的注解迁移：**
+>
+> | MyBatis-Plus | MyBatis-Flex |
+> |---|---|
+> | `@TableName("sys_user")` | `@Table("sys_user")` |
+> | `@TableId(type = IdType.AUTO)` | `@Id(keyType = KeyType.Auto)` |
+> | `@TableField(fill = FieldFill.INSERT)` | 改由 `InsertListener` 实现自动填充 |
+> | `@TableField(fill = FieldFill.INSERT_UPDATE)` | 改由 `UpdateListener` 实现自动填充 |
+> | `@TableLogic` | `@Column(isLogicDelete = true)` |
+
+#### 2.3.3 MyBatis-Flex Mapper：UserMapper
 
 ```java
+import com.mybatisflex.core.BaseMapper;
+
 @Mapper
 public interface UserMapper extends BaseMapper<UserDO> {
 }
+```
+
+分页查询示例：
+
+```java
+Page<UserDO> page = mapper.paginate(
+    Page.of(pageNum, pageSize),
+    QueryWrapper.create().where(USER_DO.STATUS.eq(1))
+);
 ```
 
 #### 2.3.4 JPA 实体与仓储：UserJpaEntity、UserJpaRepository
@@ -376,7 +402,7 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
 
 - **MinioFileService**：实现 `FileService` 接口，提供 MinIO 文件存储
 - **AiChatService**：实现 `AiService` 接口，提供 AI 对话能力
-- **Config 配置类**：MybatisPlusConfig、MinioConfig、RedisConfig、SecurityConfig 等
+- **Config 配置类**：MybatisFlexConfig、MinioConfig、RedissonConfig、SecurityConfig 等
 
 ---
 
@@ -592,3 +618,10 @@ User.create()                    UserApplicationService              SpringDomai
 - [架构设计说明](architecture.md) — 技术栈、模块职责、端口规划
 - [DDD 分层规范](ddd-specification.md) — 各层代码规范与扩展指南
 - [快速开始](getting-started.md) — 环境要求与启动步骤
+
+---
+
+> **作者**：vahoa  
+> **日期**：2026 年  
+> **作品**：pandora-arch · DDD 架构底座  
+> **版权**：© 2026 vahoa. All rights reserved.

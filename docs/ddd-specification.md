@@ -1,4 +1,6 @@
-# DDD 分层规范与扩展指南
+﻿# DDD 分层规范与扩展指南
+
+> 基线：JDK 25 + Spring Boot 4.0.5 + MyBatis-Flex 1.11.6 + Redisson 4.3.1
 
 ## 分层架构总览
 
@@ -173,14 +175,16 @@ public class UserRepositoryImpl implements UserRepository {
 
 ```java
 @Data
-@TableName("sys_user")
+@Table("sys_user")
 public class UserDO {
-    @TableId(type = IdType.AUTO)
+    @Id(keyType = KeyType.Auto)
     private Long id;
     private String username;
     // ... 与数据库表一一对应
 }
 ```
+
+> 注：本项目使用 **MyBatis-Flex 1.11.6**，实体注解来自 `com.mybatisflex.annotation.*`（`@Table` / `@Id` / `@Column`）。**严禁引入 MyBatis-Plus** 的 `@TableName` / `@TableId`。
 
 ### Converter
 
@@ -239,7 +243,7 @@ Controller 只做参数接收、调用应用服务、包装返回值，不包含
 
 在 `cn.pandora.infrastructure.persistence.order` 包下创建：
 - `OrderDO.java` — 订单数据对象
-- `OrderMapper.java` — MyBatis-Plus Mapper
+- `OrderMapper.java` — MyBatis-Flex `BaseMapper<OrderDO>`
 - `OrderRepositoryImpl.java` — 订单仓储实现
 
 在 `cn.pandora.infrastructure.persistence.converter` 包下创建：
@@ -258,3 +262,10 @@ Controller 只做参数接收、调用应用服务、包装返回值，不包含
 
 - **单体模式**：无需额外操作，`pandora-start` 自动包含新代码
 - **微服务模式**：在 `pandora-service/` 下新建 `pandora-service-order` 模块，结构参照 `pandora-service-user`
+
+---
+
+> **作者**：vahoa  
+> **日期**：2026 年  
+> **作品**：pandora-arch · DDD 架构底座  
+> **版权**：© 2026 vahoa. All rights reserved.

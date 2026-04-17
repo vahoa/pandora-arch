@@ -1,4 +1,4 @@
-# Redis 7.4.x Cluster 集群部署（三主三从）
+﻿# Redis 7.4.x Cluster 集群部署（三主三从）
 
 > 适用版本：Redis 7.4.2（2026 年最新稳定版）· Redisson 3.50
 > 架构：3 主 3 从 · 16384 slot 自动分片 · 客户端直连 / 哨兵 / 集群模式
@@ -275,3 +275,10 @@ redis-cli --cluster del-node 127.0.0.1:7001 <node-id> -a RedisPwd@2026
 | 备份 | 每天 AOF 离线归档到对象存储 |
 | 大 key | 慢查询 + `redis-cli --bigkeys` 定期巡检 |
 | 热 key | `MONITOR` / `OBJECT FREQ` / 客户端本地二级缓存 |
+
+---
+
+> **作者**：vahoa  
+> **日期**：2026 年  
+> **作品**：pandora-arch · DDD 架构底座  
+> **版权**：© 2026 vahoa. All rights reserved.

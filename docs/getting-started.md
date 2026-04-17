@@ -1,4 +1,4 @@
-# 快速开始
+﻿# 快速开始
 
 > 工程：`pandora-arch` · JDK 25 + Spring Boot 4.0.5 + Spring Cloud Alibaba 2025.1.0.0 + DDD
 
@@ -164,3 +164,10 @@ pandora-service/pandora-service-user/target/pandora-service-user-1.0.0.jar
 - 打包插件已为 Lombok 打开 `jdk.compiler` 模块（`--add-opens`），消除 `sun.misc.Unsafe` 警告
 - Lombok 锁定到 **1.18.44**，更早版本在 JDK 25 下注解处理会失败
 - Spring Framework 7.0 已移除 `spring-jcl`，父 POM 统一兜底引入 `commons-logging`
+
+---
+
+> **作者**：vahoa  
+> **日期**：2026 年  
+> **作品**：pandora-arch · DDD 架构底座  
+> **版权**：© 2026 vahoa. All rights reserved.

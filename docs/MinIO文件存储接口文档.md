@@ -1,10 +1,12 @@
-# MinIO 文件存储接口文档
+﻿# MinIO 文件存储接口文档
+
+> 基线：JDK 25 + Spring Boot 4.0.5 + MinIO Java SDK 8.5.17
 
 ## 1. MinIO 概述
 
 MinIO 是一款高性能的对象存储服务，兼容 Amazon S3 API，适用于私有云和边缘部署场景。
 
-本系统基于 **MinIO 8.5.7** 版本，默认配置如下：
+本系统基于 **MinIO Java SDK 8.5.17** 版本，默认配置如下：
 
 | 配置项 | 值 |
 |--------|-----|
@@ -42,21 +44,22 @@ MinioFileService → MinioService
 ### 3.1 application.yml 配置
 
 ```yaml
-minio:
-  endpoint: http://127.0.0.1:9000
-  access-key: minioadmin
-  secret-key: minioadmin
-  bucket: corp-web
+pandora:
+  minio:
+    endpoint: http://127.0.0.1:9000
+    access-key: minioadmin
+    secret-key: minioadmin
+    bucket: corp-web
 ```
 
 ### 3.2 配置项说明
 
 | 配置项 | 说明 | 示例 |
 |--------|------|------|
-| `endpoint` | MinIO 服务地址 | `http://127.0.0.1:9000` |
-| `access-key` | 访问密钥 | `minioadmin` |
-| `secret-key` | 私密密钥 | `minioadmin` |
-| `bucket` | 默认存储桶名称 | `corp-web` |
+| `pandora.minio.endpoint` | MinIO 服务地址 | `http://127.0.0.1:9000` |
+| `pandora.minio.access-key` | 访问密钥 | `minioadmin` |
+| `pandora.minio.secret-key` | 私密密钥 | `minioadmin` |
+| `pandora.minio.bucket` | 默认存储桶名称 | `corp-web` |
 
 ---
 
@@ -241,4 +244,11 @@ spring:
 
 ---
 
-*文档版本：基于 MinIO 8.5.7*
+*文档版本：基于 MinIO Java SDK 8.5.17，更新日期 2026-04*
+
+---
+
+> **作者**：vahoa  
+> **日期**：2026 年  
+> **作品**：pandora-arch · DDD 架构底座  
+> **版权**：© 2026 vahoa. All rights reserved.

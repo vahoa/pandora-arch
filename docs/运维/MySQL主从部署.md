@@ -1,4 +1,4 @@
-# MySQL 9.6.0 主从部署（GTID + 半同步）
+﻿# MySQL 9.6.0 主从部署（GTID + 半同步）
 
 > 适用版本：MySQL 9.6.0（2026 最新稳定版）
 > 架构：1 主 N 从 · GTID 自动同步 · 半同步复制 · ProxySQL 读写分离（可选）
@@ -260,3 +260,10 @@ public class UserQueryService {
 3. **防火墙 / Docker 端口未映射** → `SHOW REPLICA STATUS` 显示 `connecting`。
 4. **`caching_sha2_password` 连接失败** → JDBC URL 必须加 `allowPublicKeyRetrieval=true` 或显式下发 server 公钥。
 5. **Slave 写入** → 一定要 `read_only=ON` + `super_read_only=ON`，否则数据不一致后同步会断裂。
+
+---
+
+> **作者**：vahoa  
+> **日期**：2026 年  
+> **作品**：pandora-arch · DDD 架构底座  
+> **版权**：© 2026 vahoa. All rights reserved.

@@ -1,35 +1,42 @@
-# Spring AI 集成指南
+﻿# Spring AI 集成指南
+
+> 基线：JDK 25 + Spring Boot 4.0.5 + Spring AI 1.0.0（GA）
 
 ## 1. Spring AI 概述
 
 Spring AI 是 Spring 生态中用于集成大语言模型（LLM）的抽象框架，提供统一的 API 访问多种 AI 服务。
 
-本指南基于 **Spring AI 1.0.0-M6** 版本，通过以下方式管理依赖：
+本指南基于 **Spring AI 1.0.0（正式版）**，通过以下方式管理依赖：
 
-- 在父 POM 中引入 `spring-ai-bom` 进行版本管理
-- 需要配置 **Spring Milestones** 仓库以获取里程碑版本依赖
+- 父 POM 中统一声明 `spring-ai-bom`
+- Spring AI 1.0 已在 Maven Central 正式发布，无需额外添加 milestone 仓库
 
 ```xml
-<repositories>
-    <repository>
-        <id>spring-milestones</id>
-        <name>Spring Milestones</name>
-        <url>https://repo.spring.io/milestone</url>
-    </repository>
-</repositories>
-
 <dependencyManagement>
     <dependencies>
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-bom</artifactId>
-            <version>1.0.0-M6</version>
+            <version>1.0.0</version>
             <type>pom</type>
             <scope>import</scope>
         </dependency>
     </dependencies>
 </dependencyManagement>
 ```
+
+业务模块按需引入 Starter：
+
+```xml
+<!-- pandora-infrastructure（作为可选能力） -->
+<dependency>
+    <groupId>org.springframework.ai</groupId>
+    <artifactId>spring-ai-starter-model-openai</artifactId>
+    <optional>true</optional>
+</dependency>
+```
+
+> **注意**：旧版 artifactId `spring-ai-openai-spring-boot-starter` 已改名为 `spring-ai-starter-model-openai`。
 
 ---
 
@@ -163,7 +170,7 @@ curl -X POST http://localhost:8080/api/ai/translate \
 ```xml
 <dependency>
     <groupId>org.springframework.ai</groupId>
-    <artifactId>spring-ai-ollama-spring-boot-starter</artifactId>
+    <artifactId>spring-ai-starter-model-ollama</artifactId>
 </dependency>
 ```
 
@@ -203,15 +210,24 @@ public RetrievalAugmentationClient retrievalClient(VectorStore vectorStore, Embe
 @Bean
 public ChatClient chatClient(ChatClient.Builder builder) {
     return builder
-        .defaultOptions(ChatOptionsBuilder.builder()
-            .withModel("gpt-4o-mini")
-            .withTemperature(0.7)
-            .withMaxTokens(2048)
+        .defaultOptions(OpenAiChatOptions.builder()
+            .model("gpt-4o-mini")
+            .temperature(0.7)
+            .maxTokens(2048)
             .build())
         .build();
 }
 ```
 
+> 说明：Spring AI 1.0 GA 已移除 `ChatOptionsBuilder.builder().withXxx()` 的旧 API，统一使用各模型的 `XxxChatOptions.builder().xxx()` 链式方法。
+
 ---
 
-*文档版本：基于 Spring AI 1.0.0-M6*
+*文档版本：基于 Spring AI 1.0.0，更新日期 2026-04*
+
+---
+
+> **作者**：vahoa  
+> **日期**：2026 年  
+> **作品**：pandora-arch · DDD 架构底座  
+> **版权**：© 2026 vahoa. All rights reserved.

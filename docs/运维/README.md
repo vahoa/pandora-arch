@@ -1,4 +1,4 @@
-# pandora-arch 运维部署文档索引
+﻿# pandora-arch 运维部署文档索引
 
 | 文档 | 说明 |
 |------|------|
@@ -8,3 +8,10 @@
 | [CI/CD 全流水线](./CICD流水线部署.md) | Git + Docker + GitHub Actions / GitLab CI / Jenkins · K8s + Helm + ArgoCD |
 
 相关：[技术栈升级说明](../技术栈升级说明.md)
+
+---
+
+> **作者**：vahoa  
+> **日期**：2026 年  
+> **作品**：pandora-arch · DDD 架构底座  
+> **版权**：© 2026 vahoa. All rights reserved.
